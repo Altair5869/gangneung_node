@@ -1,7 +1,14 @@
 import { WorkSpot } from "@/types";
 
-const GANGNEUNG = { x: "128.8759", y: "37.7519" };
-const RADIUS = 20000; // 20km
+// 강릉 주요 구역 중심점 (반경 6km씩 커버)
+const CENTERS = [
+  { x: "128.8759", y: "37.7519" }, // 강릉 시내/역
+  { x: "128.9170", y: "37.7956" }, // 경포대/강문해변
+  { x: "128.8218", y: "37.8981" }, // 주문진
+  { x: "128.8500", y: "37.8300" }, // 사천
+  { x: "129.0500", y: "37.6800" }, // 정동진
+];
+const RADIUS = 6000;
 
 interface KakaoPlace {
   id: string;
@@ -17,11 +24,11 @@ interface KakaoLocalResponse {
   meta: { is_end: boolean };
 }
 
-async function fetchCafePage(page: number): Promise<KakaoLocalResponse> {
+async function fetchCafePage(center: { x: string; y: string }, page: number): Promise<KakaoPlace[]> {
   const url = new URL("https://dapi.kakao.com/v2/local/search/category.json");
   url.searchParams.set("category_group_code", "CE7");
-  url.searchParams.set("x", GANGNEUNG.x);
-  url.searchParams.set("y", GANGNEUNG.y);
+  url.searchParams.set("x", center.x);
+  url.searchParams.set("y", center.y);
   url.searchParams.set("radius", String(RADIUS));
   url.searchParams.set("size", "15");
   url.searchParams.set("page", String(page));
@@ -30,28 +37,35 @@ async function fetchCafePage(page: number): Promise<KakaoLocalResponse> {
     headers: { Authorization: `KakaoAK ${process.env.KAKAO_REST_API_KEY}` },
     next: { revalidate: 3600 },
   });
-  if (!res.ok) throw new Error(`Kakao Local API error: ${res.status}`);
-  return res.json();
+  if (!res.ok) return [];
+  const data: KakaoLocalResponse = await res.json();
+  return data.documents;
+}
+
+async function fetchAllPagesForCenter(center: { x: string; y: string }): Promise<KakaoPlace[]> {
+  const pages = await Promise.all([
+    fetchCafePage(center, 1),
+    fetchCafePage(center, 2),
+    fetchCafePage(center, 3),
+  ]);
+  return pages.flat();
 }
 
 export async function getKakaoCafes(): Promise<WorkSpot[]> {
-  const key = process.env.KAKAO_REST_API_KEY;
-  if (!key) return [];
+  if (!process.env.KAKAO_REST_API_KEY) return [];
 
   try {
-    const [page1, page2, page3] = await Promise.all([
-      fetchCafePage(1),
-      fetchCafePage(2),
-      fetchCafePage(3),
-    ]);
+    const results = await Promise.all(CENTERS.map(fetchAllPagesForCenter));
 
-    const places = [
-      ...page1.documents,
-      ...page2.documents,
-      ...page3.documents,
-    ];
+    // ID 기준 중복 제거
+    const seen = new Set<string>();
+    const unique = results.flat().filter((p) => {
+      if (seen.has(p.id)) return false;
+      seen.add(p.id);
+      return true;
+    });
 
-    return places.map((p) => ({
+    return unique.map((p) => ({
       id: `kakao-${p.id}`,
       name: p.place_name,
       category: "cafe" as const,
