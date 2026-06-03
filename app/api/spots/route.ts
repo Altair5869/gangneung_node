@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { MOCK_SPOTS } from "@/lib/spots-data";
-import { getAreaBasedList, getBarrierFreeList } from "@/lib/tourism-api";
+import { getAreaBasedList, getBarrierFreeList, getCongestionMap } from "@/lib/tourism-api";
 import { mapTourismToWorkSpot, mapBarrierFreeToWorkSpot } from "@/lib/tourism-mapper";
 import { getKakaoCafes } from "@/lib/kakao-local-api";
 import { estimateCongestion } from "@/lib/utils";
@@ -30,12 +30,13 @@ export async function GET(request: NextRequest) {
   let spots: WorkSpot[];
 
   try {
-    const [foodResult, culturalResult, accommodationResult, barrierFreeResult, kakaoCafes] = await Promise.allSettled([
+    const [foodResult, culturalResult, accommodationResult, barrierFreeResult, kakaoCafes, congestionMap] = await Promise.allSettled([
       getAreaBasedList("32", "1", "39"), // 음식점 (카페 포함)
       getAreaBasedList("32", "1", "14"), // 문화시설 (도서관, 문화원 등)
       getAreaBasedList("32", "1", "32"), // 숙박 (호텔 라운지 등)
       getBarrierFreeList("32", "1"),
       getKakaoCafes(),
+      getCongestionMap("32", "1"),
     ]);
 
     const rawRegular = [
@@ -72,10 +73,11 @@ export async function GET(request: NextRequest) {
       ...deduplicatedKakao,
     ];
 
-    // 시간대 기반 예상 혼잡도 적용
+    // 혼잡도: 관광공사 실데이터 우선, 없으면 시간대 기반 추정
+    const cMap = congestionMap.status === "fulfilled" ? congestionMap.value : new Map();
     spots = merged.map((s) => ({
       ...s,
-      congestion: estimateCongestion(s.id),
+      congestion: cMap.get(s.tourismContentId ?? "") ?? estimateCongestion(s.id),
     }));
   } catch {
     spots = MOCK_SPOTS;
