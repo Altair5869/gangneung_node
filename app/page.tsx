@@ -42,18 +42,22 @@ export default function HomePage() {
 
       {/* 스탯 배너 */}
       <section className="bg-white border-b border-gray-100 py-10">
-        <div className="max-w-4xl mx-auto px-4 grid grid-cols-3 gap-6 text-center">
+        <div className="max-w-4xl mx-auto px-4 grid grid-cols-2 sm:grid-cols-4 gap-6 text-center">
           <div>
-            <p className="text-4xl font-bold text-gray-900">200<span className="text-teal-500">+</span></p>
+            <p className="text-4xl font-bold text-gray-900">266<span className="text-teal-500">+</span></p>
             <p className="text-sm text-gray-500 mt-1">강릉 워크스팟</p>
           </div>
           <div>
-            <p className="text-4xl font-bold text-gray-900">예상</p>
-            <p className="text-sm text-gray-500 mt-1">혼잡도 정보</p>
+            <p className="text-4xl font-bold text-gray-900">5<span className="text-indigo-500">종</span></p>
+            <p className="text-sm text-gray-500 mt-1">관광공사 API 활용</p>
           </div>
           <div>
-            <p className="text-4xl font-bold text-gray-900">AI</p>
-            <p className="text-sm text-gray-500 mt-1">맞춤 동선 추천</p>
+            <p className="text-4xl font-bold text-gray-900">50<span className="text-emerald-500">+</span></p>
+            <p className="text-sm text-gray-500 mt-1">무장애 스팟</p>
+          </div>
+          <div>
+            <p className="text-4xl font-bold text-gray-900 text-sky-600">AI</p>
+            <p className="text-sm text-gray-500 mt-1">맞춤 동선 큐레이션</p>
           </div>
         </div>
       </section>
