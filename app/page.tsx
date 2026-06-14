@@ -12,28 +12,28 @@ export default function HomePage() {
         <div className="relative max-w-6xl mx-auto px-4 py-24 w-full">
           <div className="max-w-3xl">
             <span className="inline-block text-xs font-semibold tracking-widest text-white/80 uppercase mb-6">
-              Gangneung Workation
+              Gangneung Workation Platform
             </span>
             <h1 className="text-5xl sm:text-6xl md:text-7xl font-bold text-white leading-tight mb-6">
               바다 앞에서<br />
               <span className="text-white drop-shadow">일하세요.</span>
             </h1>
             <p className="text-lg text-white/85 mb-10 max-w-xl leading-relaxed">
-              강릉의 카페, 코워킹 스페이스, 도서관을 AI가 분석해 최적의 워케이션 동선을 추천합니다.
-              실시간 혼잡도와 무장애 정보까지 한 번에.
+              일할 공간부터 맛집, 숙박까지 — 한국관광공사 공식 데이터와 AI가
+              강릉 워케이션의 모든 동선을 설계합니다.
             </p>
             <div className="flex flex-wrap gap-4">
               <Link
-                href="/spots"
+                href="/ai-curator"
                 className="px-7 py-4 bg-white text-sky-600 rounded-xl font-semibold text-sm hover:bg-sky-50 transition-colors shadow-lg shadow-sky-600/20"
               >
-                워크스팟 둘러보기
+                AI 동선 만들기
               </Link>
               <Link
-                href="/ai-curator"
+                href="/spots"
                 className="px-7 py-4 bg-white/20 text-white rounded-xl font-semibold text-sm hover:bg-white/30 transition-colors border border-white/40"
               >
-                AI 동선 짜기
+                워크스팟 둘러보기
               </Link>
             </div>
           </div>
@@ -62,15 +62,49 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* 워케이션 플로우 */}
+      <section className="py-16 bg-gray-50">
+        <div className="max-w-4xl mx-auto px-4">
+          <div className="text-center mb-10">
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">강릉에서의 하루</h2>
+            <p className="text-gray-500 text-sm">워케이션의 모든 순간을 하나의 플랫폼에서</p>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {[
+              { step: "01", title: "일하기", desc: "카페·코워킹·도서관 266곳", href: "/spots", color: "sky" },
+              { step: "02", title: "먹기", desc: "강릉 현지 맛집 30곳", href: "/food", color: "orange" },
+              { step: "03", title: "즐기기", desc: "관광지·무장애 스팟", href: "/map", color: "teal" },
+              { step: "04", title: "자기", desc: "호텔·펜션·게스트하우스", href: "/stay", color: "indigo" },
+            ].map((item) => (
+              <Link key={item.step} href={item.href} className="group bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex flex-col gap-3">
+                <span className={`text-xs font-bold tracking-widest text-${item.color}-500`}>{item.step}</span>
+                <div>
+                  <p className="font-bold text-gray-900 group-hover:text-sky-700 transition-colors">{item.title}</p>
+                  <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">{item.desc}</p>
+                </div>
+              </Link>
+            ))}
+          </div>
+          <div className="mt-6 text-center">
+            <Link
+              href="/ai-curator"
+              className="inline-flex items-center gap-2 text-sm font-semibold text-sky-700 hover:text-sky-900 transition-colors"
+            >
+              AI가 이 모든 동선을 한 번에 설계해드립니다 →
+            </Link>
+          </div>
+        </div>
+      </section>
+
       {/* 기능 소개 */}
-      <section className="py-24 bg-gray-50">
+      <section className="py-24 bg-white">
         <div className="max-w-6xl mx-auto px-4">
           <div className="text-center mb-16">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">
-              강릉 워케이션을 더 스마트하게
+              강릉 워케이션, 이렇게 달라집니다
             </h2>
             <p className="text-gray-500 max-w-lg mx-auto">
-              한국관광공사 공식 데이터를 기반으로 검증된 정보를 제공합니다.
+              한국관광공사 공식 OpenAPI 기반 검증 데이터 · AI 동선 최적화 · 무장애 접근성 정보
             </p>
           </div>
 
@@ -142,7 +176,7 @@ export default function HomePage() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-2xl mx-auto">
             {[
               { value: "2시간", label: "서울 → KTX" },
-              { value: "100+", label: "카페 & 코워킹" },
+              { value: "266+", label: "워크스팟" },
               { value: "기가", label: "인터넷 인프라" },
               { value: "365일", label: "워케이션 가능" },
             ].map((item) => (
@@ -159,17 +193,26 @@ export default function HomePage() {
       <section className="bg-white py-20">
         <div className="max-w-2xl mx-auto px-4 text-center">
           <h2 className="text-3xl font-bold text-gray-900 mb-4">
-            지금 바로 시작해보세요
+            오늘의 강릉 동선, AI에게 맡겨보세요
           </h2>
           <p className="text-gray-500 mb-8">
-            AI가 당신의 업무 스타일에 맞는 강릉 워케이션 동선을 만들어드립니다.
+            업무 스타일과 선호를 입력하면 AI가 워크스팟부터 맛집·관광지까지<br className="hidden sm:block" />
+            최적 이동 동선으로 하루를 설계해드립니다.
           </p>
-          <Link
-            href="/ai-curator"
-            className="inline-block px-8 py-4 bg-gray-900 text-white rounded-xl font-semibold text-sm hover:bg-gray-700 transition-colors"
-          >
-            AI 동선 만들기
-          </Link>
+          <div className="flex flex-wrap justify-center gap-4">
+            <Link
+              href="/ai-curator"
+              className="inline-block px-8 py-4 bg-gray-900 text-white rounded-xl font-semibold text-sm hover:bg-gray-700 transition-colors"
+            >
+              AI 동선 만들기
+            </Link>
+            <Link
+              href="/planner"
+              className="inline-block px-8 py-4 border border-gray-200 text-gray-700 rounded-xl font-semibold text-sm hover:border-gray-400 transition-colors"
+            >
+              내 플래너 보기
+            </Link>
+          </div>
         </div>
       </section>
 
