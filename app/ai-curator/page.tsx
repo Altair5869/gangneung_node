@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { WorkSpot, CurationRoute } from "@/types";
+import { WorkSpot, LifeSpot, CurationRoute, isLifeSpot } from "@/types";
 import { cn, congestionLabel } from "@/lib/utils";
+import RouteMap from "@/components/map/RouteMap";
+import { savePlan } from "@/lib/planner-storage";
 
 const WORK_STYLES = [
   { value: "집중 코딩/개발 작업", label: "집중 개발", desc: "코딩·디버깅·집중 작업" },
@@ -24,7 +26,8 @@ const PREFERENCE_OPTIONS = [
 const DURATION_OPTIONS = [2, 4, 6, 8];
 
 const categoryLabel: Record<string, string> = {
-  cafe: "카페", coworking: "코워킹", library: "도서관", hotel: "호텔", other: "기타",
+  cafe: "카페", coworking: "코워킹", library: "도서관",
+  hotel: "호텔", other: "기타", attraction: "관광지",
 };
 
 const congestionDot: Record<string, string> = {
@@ -38,6 +41,9 @@ export default function AiCuratorPage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<CurationRoute | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [planName, setPlanName] = useState("");
+  const [showSaveForm, setShowSaveForm] = useState(false);
+  const [savedPlanId, setSavedPlanId] = useState<string | null>(null);
 
   const togglePreference = (value: string) => {
     setPreferences((prev) =>
@@ -50,16 +56,24 @@ export default function AiCuratorPage() {
     setError(null);
     setResult(null);
     try {
-      const spotsRes = await fetch("/api/spots");
+      const [spotsRes, lifeSpotsRes] = await Promise.all([
+        fetch("/api/spots"),
+        fetch("/api/life-spots"),
+      ]);
       const { spots } = (await spotsRes.json()) as { spots: WorkSpot[] };
+      const { spots: lifeSpots } = (await lifeSpotsRes.json()) as { spots: LifeSpot[] };
+
       const res = await fetch("/api/ai/curate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ curationRequest: { workStyle, duration, preferences }, spots }),
+        body: JSON.stringify({ curationRequest: { workStyle, duration, preferences }, spots, lifeSpots }),
       });
       if (!res.ok) throw new Error();
       const data = (await res.json()) as { route: CurationRoute };
       setResult(data.route);
+      setShowSaveForm(false);
+      setSavedPlanId(null);
+      setPlanName(`강릉 워케이션 ${new Date().toLocaleDateString("ko-KR", { month: "long", day: "numeric" })}`);
     } catch {
       setError("AI 큐레이터 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
     } finally {
@@ -76,13 +90,12 @@ export default function AiCuratorPage() {
           <p className="text-sky-300 text-xs font-semibold tracking-widest uppercase mb-2">AI Curator</p>
           <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">AI 동선 큐레이터</h1>
           <p className="text-white/70 text-sm">
-            업무 스타일을 알려주시면 강릉 최적 워케이션 동선을 추천해드립니다.
+            업무 스타일을 알려주시면 강릉 최적 워크-라이프 동선을 추천해드립니다.
           </p>
         </div>
       </section>
 
       <div className="relative flex-1 overflow-hidden bg-gradient-to-b from-sky-50 via-white to-white">
-        {/* 배경 장식 */}
         <div className="absolute top-0 right-[-10%] w-[500px] h-[500px] bg-sky-100/60 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 left-[-10%] w-[400px] h-[400px] bg-teal-100/50 rounded-full blur-3xl pointer-events-none" />
 
@@ -200,7 +213,7 @@ export default function AiCuratorPage() {
 
             {/* 동선 설명 카드 */}
             <div className="bg-gradient-to-br from-sky-700 via-blue-600 to-teal-600 rounded-2xl p-6 text-white shadow-xl shadow-sky-700/20">
-              <p className="text-xs font-semibold text-sky-300 uppercase tracking-widest mb-3">AI 추천 동선</p>
+              <p className="text-xs font-semibold text-sky-300 uppercase tracking-widest mb-3">AI 추천 워크-라이프 동선</p>
               <p className="text-base leading-relaxed">{result.description}</p>
               <div className="mt-4 pt-4 border-t border-white/20 flex items-center justify-between">
                 <span className="text-sm text-white/60">총 일정</span>
@@ -208,15 +221,22 @@ export default function AiCuratorPage() {
               </div>
             </div>
 
+            {/* 인라인 지도 */}
+            <RouteMap stops={result.spots} />
+
             {/* 추천 장소 */}
             <div>
-              <h2 className="text-lg font-bold text-gray-900 mb-3">추천 장소</h2>
+              <h2 className="text-lg font-bold text-gray-900 mb-3">추천 동선</h2>
               <div className="space-y-3">
-                {result.spots.map((spot, i) => (
-                  <Link key={spot.id} href={`/spots/${spot.id}`} className="block group">
+                {result.spots.map((spot, i) => {
+                  const life = isLifeSpot(spot);
+                  const card = (
                     <div className="flex gap-4 bg-white border border-gray-200 rounded-2xl p-4 hover:shadow-md hover:border-sky-200 hover:-translate-y-0.5 transition-all duration-200">
                       {/* 순번 */}
-                      <div className="flex-shrink-0 w-9 h-9 bg-gradient-to-br from-sky-700 to-teal-600 text-white rounded-full flex items-center justify-center text-sm font-bold shadow-sm">
+                      <div
+                        className="flex-shrink-0 w-9 h-9 text-white rounded-full flex items-center justify-center text-sm font-bold shadow-sm"
+                        style={{ background: life ? "#0d9488" : "#0369a1" }}
+                      >
                         {i + 1}
                       </div>
 
@@ -239,30 +259,47 @@ export default function AiCuratorPage() {
                         </p>
                         <p className="text-xs text-gray-400 mt-0.5 truncate">{spot.address}</p>
                         <div className="flex items-center gap-2 mt-2 flex-wrap">
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 font-medium">
+                          <span
+                            className={cn(
+                              "text-xs px-2 py-0.5 rounded-full font-medium",
+                              life ? "bg-teal-100 text-teal-700" : "bg-gray-100 text-gray-500"
+                            )}
+                          >
                             {categoryLabel[spot.category] ?? spot.category}
                           </span>
-                          {spot.wifi.available && (
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 font-medium">
-                              WiFi
-                            </span>
-                          )}
-                          {spot.barrierFree !== undefined && (
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-teal-100 text-teal-700 font-medium">
-                              무장애
-                            </span>
-                          )}
-                          {spot.congestion && (
-                            <span className="flex items-center gap-1 text-xs text-gray-500">
-                              <span className={cn("w-1.5 h-1.5 rounded-full", congestionDot[spot.congestion])} />
-                              {congestionLabel(spot.congestion)}
-                            </span>
+                          {!life && (
+                            <>
+                              {(spot as WorkSpot).wifi.available && (
+                                <span className="text-xs px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 font-medium">
+                                  WiFi
+                                </span>
+                              )}
+                              {(spot as WorkSpot).barrierFree !== undefined && (
+                                <span className="text-xs px-2 py-0.5 rounded-full bg-teal-100 text-teal-700 font-medium">
+                                  무장애
+                                </span>
+                              )}
+                              {(spot as WorkSpot).congestion && (
+                                <span className="flex items-center gap-1 text-xs text-gray-500">
+                                  <span className={cn("w-1.5 h-1.5 rounded-full", congestionDot[(spot as WorkSpot).congestion!])} />
+                                  예상 {congestionLabel((spot as WorkSpot).congestion)}
+                                </span>
+                              )}
+                            </>
                           )}
                         </div>
                       </div>
                     </div>
-                  </Link>
-                ))}
+                  );
+
+                  return life ? (
+                    <div key={spot.id}>{card}</div>
+                  ) : (
+                    <Link key={spot.id} href={`/spots/${spot.id}`} className="block group">
+                      {card}
+                    </Link>
+                  );
+                })}
               </div>
             </div>
 
@@ -283,9 +320,64 @@ export default function AiCuratorPage() {
               </div>
             )}
 
+            {/* 동선 저장 */}
+            {!savedPlanId ? (
+              <div className="bg-gray-50 border border-gray-200 rounded-2xl p-5">
+                {!showSaveForm ? (
+                  <button
+                    onClick={() => setShowSaveForm(true)}
+                    className="w-full py-3 rounded-xl text-sm font-semibold bg-gray-900 text-white hover:bg-gray-700 transition-colors"
+                  >
+                    이 동선 플래너에 저장하기
+                  </button>
+                ) : (
+                  <div className="space-y-3">
+                    <label className="text-xs font-bold text-gray-700 uppercase tracking-widest">플랜 이름</label>
+                    <input
+                      type="text"
+                      value={planName}
+                      onChange={(e) => setPlanName(e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm text-gray-900 focus:outline-none focus:border-sky-400"
+                      placeholder="강릉 워케이션 동선 이름을 입력하세요"
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          if (!result || !planName.trim()) return;
+                          const plan = savePlan(planName.trim(), result);
+                          setSavedPlanId(plan.id);
+                          setShowSaveForm(false);
+                        }}
+                        disabled={!planName.trim()}
+                        className="flex-1 py-3 rounded-xl text-sm font-semibold bg-sky-700 text-white hover:bg-sky-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        저장
+                      </button>
+                      <button
+                        onClick={() => setShowSaveForm(false)}
+                        className="px-5 py-3 rounded-xl text-sm font-semibold border border-gray-200 text-gray-500 hover:border-gray-400 transition-colors"
+                      >
+                        취소
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="bg-green-50 border border-green-200 rounded-2xl p-5 flex items-center justify-between">
+                <p className="text-sm font-semibold text-green-700">플래너에 저장되었습니다</p>
+                <Link
+                  href="/planner"
+                  className="text-sm font-bold text-green-700 hover:text-green-900 underline"
+                >
+                  플래너 보기
+                </Link>
+              </div>
+            )}
+
             {/* 다시 시작 */}
             <button
-              onClick={() => { setResult(null); setPreferences([]); }}
+              onClick={() => { setResult(null); setPreferences([]); setSavedPlanId(null); setShowSaveForm(false); }}
               className="w-full py-3 rounded-xl text-sm font-semibold text-gray-500 border border-gray-200 hover:border-gray-400 hover:text-gray-700 transition-all"
             >
               다시 추천받기

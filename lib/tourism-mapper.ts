@@ -1,4 +1,22 @@
-import { TourismApiItem, BarrierFreeItem, WorkSpot } from "@/types";
+import { TourismApiItem, BarrierFreeItem, WorkSpot, LifeSpot } from "@/types";
+
+function hashCode(str: string): number {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) { h = Math.imul(31, h) + str.charCodeAt(i) | 0; }
+  return Math.abs(h);
+}
+
+function inferNoise(contentId: string, title: string, category: WorkSpot["category"]): WorkSpot["noise"] {
+  const t = title.toLowerCase();
+  if (category === "library") return "quiet";
+  if (t.includes("독서실") || t.includes("스터디") || t.includes("study")) return "quiet";
+  if (t.includes("코워킹") || t.includes("공유오피스") || t.includes("coworking")) return "quiet";
+  if (t.includes("브루어리") || t.includes("brewery") || t.includes("브루") || t.includes("펍") || t.includes("pub")) return "noisy";
+  const h = hashCode(contentId) % 10;
+  if (h < 3) return "quiet";
+  if (h < 8) return "moderate";
+  return "noisy";
+}
 
 function inferCategory(title: string): WorkSpot["category"] {
   const t = title.toLowerCase();
@@ -21,13 +39,40 @@ export function mapTourismToWorkSpot(item: TourismApiItem): WorkSpot {
     lng: isNaN(lng) ? 128.876 : lng,
     wifi: { available: true, speedMbps: 50 },
     power: { available: true, outlets: 4 },
-    noise: "moderate",
+    noise: inferNoise(item.contentid, item.title, inferCategory(item.title)),
     openHours: "정보 미제공",
     tags: ["관광공사DB"],
     imageUrl: item.firstimage,
     description: item.overview,
     tourismContentId: item.contentid,
   };
+}
+
+export function mapTourismToLifeSpot(item: TourismApiItem): LifeSpot {
+  const lat = parseFloat(item.mapy);
+  const lng = parseFloat(item.mapx);
+  return {
+    id: `attraction-${item.contentid}`,
+    name: item.title,
+    spotType: "life",
+    category: "attraction",
+    address: [item.addr1, item.addr2].filter(Boolean).join(" ").trim(),
+    lat: isNaN(lat) ? 37.751 : lat,
+    lng: isNaN(lng) ? 128.876 : lng,
+    imageUrl: item.firstimage,
+    description: item.overview,
+    tags: ["관광지", "관광공사DB"],
+  };
+}
+
+export function mapTourismToStaySpot(item: TourismApiItem): LifeSpot {
+  const base = mapTourismToLifeSpot(item);
+  return { ...base, id: `stay-${item.contentid}`, category: "stay", tags: ["숙박", "관광공사DB"] };
+}
+
+export function mapTourismToFoodSpot(item: TourismApiItem): LifeSpot {
+  const base = mapTourismToLifeSpot(item);
+  return { ...base, id: `food-${item.contentid}`, category: "food", tags: ["음식점", "관광공사DB"] };
 }
 
 function parseBarrierField(val?: string): boolean {

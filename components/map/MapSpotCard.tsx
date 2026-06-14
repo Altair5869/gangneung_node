@@ -38,7 +38,7 @@ export default function MapSpotCard({
             {spot.congestion && (
               <span className="flex items-center gap-1 text-xs text-gray-500">
                 <span className={cn("w-1.5 h-1.5 rounded-full", congestionDot[spot.congestion])} />
-                {congestionLabel(spot.congestion)}
+                예상 {congestionLabel(spot.congestion)}
               </span>
             )}
           </div>

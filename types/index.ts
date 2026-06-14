@@ -36,8 +36,27 @@ export interface CurationRequest {
   startLocation?: string;
 }
 
+export interface LifeSpot {
+  id: string;
+  name: string;
+  spotType: "life";
+  category: "attraction" | "stay" | "food";
+  address: string;
+  lat: number;
+  lng: number;
+  imageUrl?: string;
+  description?: string;
+  tags: string[];
+}
+
+export type RouteStop = WorkSpot | LifeSpot;
+
+export function isLifeSpot(s: RouteStop): s is LifeSpot {
+  return "spotType" in s && (s as LifeSpot).spotType === "life";
+}
+
 export interface CurationRoute {
-  spots: WorkSpot[];
+  spots: RouteStop[];
   totalDuration: number;
   description: string;
   tips: string[];

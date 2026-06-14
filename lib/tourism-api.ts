@@ -91,6 +91,45 @@ export async function getBarrierFreeDetail(contentId: string) {
   return items[0] ?? null;
 }
 
+// ── 숙박 (contentTypeId=32) ───────────────────────────────
+
+export async function getStayList(areaCode = "32", sigunguCode = "1") {
+  const data = await fetchApi<TourismApiResponse>(KORSERVICE_URL, "areaBasedList2", {
+    areaCode,
+    sigunguCode,
+    contentTypeId: "32",
+    numOfRows: "30",
+    pageNo: "1",
+  });
+  return extractItems(data);
+}
+
+// ── 음식점 (contentTypeId=39) ─────────────────────────────
+
+export async function getFoodList(areaCode = "32", sigunguCode = "1") {
+  const data = await fetchApi<TourismApiResponse>(KORSERVICE_URL, "areaBasedList2", {
+    areaCode,
+    sigunguCode,
+    contentTypeId: "39",
+    numOfRows: "30",
+    pageNo: "1",
+  });
+  return extractItems(data);
+}
+
+// ── 관광지 (contentTypeId=12) ──────────────────────────────
+
+export async function getAttractionList(areaCode = "32", sigunguCode = "1") {
+  const data = await fetchApi<TourismApiResponse>(KORSERVICE_URL, "areaBasedList2", {
+    areaCode,
+    sigunguCode,
+    contentTypeId: "12",
+    numOfRows: "30",
+    pageNo: "1",
+  });
+  return extractItems(data);
+}
+
 // ── 관광지 집중률 예측 (TatsCnctrRateService) ─────────────
 
 interface CnctrRateItem {

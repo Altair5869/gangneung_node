@@ -44,7 +44,7 @@ export default function HomePage() {
       <section className="bg-white border-b border-gray-100 py-10">
         <div className="max-w-4xl mx-auto px-4 grid grid-cols-3 gap-6 text-center">
           <div>
-            <p className="text-4xl font-bold text-gray-900">50<span className="text-teal-500">+</span></p>
+            <p className="text-4xl font-bold text-gray-900">200<span className="text-teal-500">+</span></p>
             <p className="text-sm text-gray-500 mt-1">강릉 워크스팟</p>
           </div>
           <div>
@@ -94,6 +94,30 @@ export default function HomePage() {
               color="emerald"
               href="/spots?barrierFree=true"
               cta="무장애 스팟 보기"
+            />
+            <FeatureCard
+              tag="숙박"
+              title="강릉 숙박시설 한눈에"
+              description="한국관광공사 공식 데이터 기반 호텔·펜션·게스트하우스 정보를 제공합니다."
+              color="indigo"
+              href="/stay"
+              cta="숙박 보기"
+            />
+            <FeatureCard
+              tag="맛집"
+              title="워케이션 중 식사 걱정 없이"
+              description="강릉 현지 음식점 정보를 한국관광공사 공식 데이터로 확인하세요."
+              color="orange"
+              href="/food"
+              cta="맛집 보기"
+            />
+            <FeatureCard
+              tag="플래너"
+              title="내 동선 저장하고 공유하기"
+              description="AI 큐레이터 추천 동선을 저장해 언제든 꺼내보고 링크로 공유하세요."
+              color="gray"
+              href="/planner"
+              cta="플래너 열기"
             />
           </div>
         </div>
@@ -152,10 +176,13 @@ export default function HomePage() {
           <p className="text-xs text-gray-400">
             본 서비스는 한국관광공사 공공 데이터를 활용합니다.
           </p>
-          <div className="flex gap-6 text-sm text-gray-500">
+          <div className="flex flex-wrap gap-5 text-sm text-gray-500">
             <Link href="/spots" className="hover:text-gray-900 transition-colors">워크스팟</Link>
+            <Link href="/stay" className="hover:text-gray-900 transition-colors">숙박</Link>
+            <Link href="/food" className="hover:text-gray-900 transition-colors">맛집</Link>
             <Link href="/ai-curator" className="hover:text-gray-900 transition-colors">AI 큐레이터</Link>
             <Link href="/map" className="hover:text-gray-900 transition-colors">지도</Link>
+            <Link href="/planner" className="hover:text-gray-900 transition-colors">플래너</Link>
           </div>
         </div>
       </footer>
@@ -174,7 +201,7 @@ function FeatureCard({
   tag: string;
   title: string;
   description: string;
-  color: "blue" | "teal" | "emerald";
+  color: "blue" | "teal" | "emerald" | "indigo" | "orange" | "gray";
   href: string;
   cta: string;
 }) {
@@ -193,6 +220,21 @@ function FeatureCard({
       tag: "bg-emerald-100 text-emerald-700",
       border: "hover:border-emerald-300",
       cta: "text-emerald-600 hover:text-emerald-800",
+    },
+    indigo: {
+      tag: "bg-indigo-100 text-indigo-700",
+      border: "hover:border-indigo-300",
+      cta: "text-indigo-600 hover:text-indigo-800",
+    },
+    orange: {
+      tag: "bg-orange-100 text-orange-700",
+      border: "hover:border-orange-300",
+      cta: "text-orange-600 hover:text-orange-800",
+    },
+    gray: {
+      tag: "bg-gray-100 text-gray-700",
+      border: "hover:border-gray-400",
+      cta: "text-gray-600 hover:text-gray-900",
     },
   }[color];
 

@@ -64,7 +64,7 @@ export default function SpotCard({ spot }: { spot: WorkSpot }) {
               congestionStyle[spot.congestion].text
             )}>
               <span className={cn("w-1.5 h-1.5 rounded-full", congestionStyle[spot.congestion].dot)} />
-              {congestionLabel(spot.congestion)}
+              예상 {congestionLabel(spot.congestion)}
             </span>
           )}
         </div>

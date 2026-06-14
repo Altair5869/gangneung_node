@@ -86,7 +86,7 @@ export default async function SpotDetailPage({
           {spot.congestion && (
             <span className={cn("flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full shadow-sm", congestionStyle[spot.congestion].bg)}>
               <span className={cn("w-1.5 h-1.5 rounded-full", congestionStyle[spot.congestion].dot)} />
-              {congestionLabel(spot.congestion)}
+              예상 {congestionLabel(spot.congestion)}
             </span>
           )}
         </div>

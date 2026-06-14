@@ -21,15 +21,24 @@ export default function RootLayout({
             <Link href="/" className="font-bold text-lg tracking-tight">
               강릉 노드
             </Link>
-            <div className="flex items-center gap-6 text-sm font-medium text-gray-600">
+            <div className="flex items-center gap-5 text-sm font-medium text-gray-600">
               <Link href="/spots" className="hover:text-gray-900 transition-colors">
                 워크스팟
+              </Link>
+              <Link href="/stay" className="hover:text-gray-900 transition-colors">
+                숙박
+              </Link>
+              <Link href="/food" className="hover:text-gray-900 transition-colors">
+                맛집
               </Link>
               <Link href="/ai-curator" className="hover:text-gray-900 transition-colors">
                 AI 큐레이터
               </Link>
               <Link href="/map" className="hover:text-gray-900 transition-colors">
                 지도
+              </Link>
+              <Link href="/planner" className="hover:text-gray-900 transition-colors">
+                플래너
               </Link>
             </div>
           </nav>
