@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { RouteStop, isLifeSpot, WorkSpot } from "@/types";
@@ -14,6 +14,14 @@ const categoryLabel: Record<string, string> = {
 };
 
 export default function PlannerPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-gray-400 text-sm">불러오는 중...</div>}>
+      <PlannerContent />
+    </Suspense>
+  );
+}
+
+function PlannerContent() {
   const searchParams = useSearchParams();
   const shareParam = searchParams.get("share");
 
