@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSpotById, MOCK_SPOTS } from "@/lib/spots-data";
 import { getDetailCommon, getBarrierFreeDetail } from "@/lib/tourism-api";
 import { mapTourismToWorkSpot, mapBarrierFreeToWorkSpot } from "@/lib/tourism-mapper";
+import { getKakaoCafes } from "@/lib/kakao-local-api";
 import { BarrierFreeItem } from "@/types";
 
 export async function GET(
@@ -45,6 +46,17 @@ export async function GET(
         const spot = mapTourismToWorkSpot(item);
         return NextResponse.json({ spot });
       }
+    } catch {
+      // fall through to 404
+    }
+  }
+
+  // kakao-{placeId} 형태의 ID 처리
+  if (id.startsWith("kakao-")) {
+    try {
+      const kakaoSpots = await getKakaoCafes();
+      const spot = kakaoSpots.find((s) => s.id === id);
+      if (spot) return NextResponse.json({ spot });
     } catch {
       // fall through to 404
     }
