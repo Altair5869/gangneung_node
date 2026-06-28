@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { Suspense } from "react";
+import WeatherWidget from "@/components/WeatherWidget";
 
 export default function HomePage() {
   return (
@@ -22,7 +24,7 @@ export default function HomePage() {
               일할 공간부터 맛집, 숙박까지 — 한국관광공사 공식 데이터와 AI가
               강릉 워케이션의 모든 동선을 설계합니다.
             </p>
-            <div className="flex flex-wrap gap-4">
+            <div className="flex flex-wrap gap-4 mb-8">
               <Link
                 href="/ai-curator"
                 className="px-7 py-4 bg-white text-sky-600 rounded-xl font-semibold text-sm hover:bg-sky-50 transition-colors shadow-lg shadow-sky-600/20"
@@ -36,6 +38,9 @@ export default function HomePage() {
                 워크스팟 둘러보기
               </Link>
             </div>
+            <Suspense fallback={null}>
+              <WeatherWidget />
+            </Suspense>
           </div>
         </div>
       </section>
@@ -48,7 +53,7 @@ export default function HomePage() {
             <p className="text-sm text-gray-500 mt-1">강릉 워크스팟</p>
           </div>
           <div>
-            <p className="text-4xl font-bold text-gray-900">5<span className="text-indigo-500">종</span></p>
+            <p className="text-4xl font-bold text-gray-900">6<span className="text-indigo-500">종</span></p>
             <p className="text-sm text-gray-500 mt-1">관광공사 API 활용</p>
           </div>
           <div>
@@ -69,12 +74,13 @@ export default function HomePage() {
             <h2 className="text-2xl font-bold text-gray-900 mb-2">강릉에서의 하루</h2>
             <p className="text-gray-500 text-sm">워케이션의 모든 순간을 하나의 플랫폼에서</p>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
             {[
               { step: "01", title: "일하기", desc: "카페·코워킹·도서관 266곳", href: "/spots", color: "sky" },
               { step: "02", title: "먹기", desc: "강릉 현지 맛집 30곳", href: "/food", color: "orange" },
               { step: "03", title: "즐기기", desc: "관광지·무장애 스팟", href: "/map", color: "teal" },
-              { step: "04", title: "자기", desc: "호텔·펜션·게스트하우스", href: "/stay", color: "indigo" },
+              { step: "04", title: "축제", desc: "강릉 지역 행사·축제", href: "/events", color: "rose" },
+              { step: "05", title: "자기", desc: "호텔·펜션·게스트하우스", href: "/stay", color: "indigo" },
             ].map((item) => (
               <Link key={item.step} href={item.href} className="group bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex flex-col gap-3">
                 <span className={`text-xs font-bold tracking-widest text-${item.color}-500`}>{item.step}</span>
@@ -148,6 +154,14 @@ export default function HomePage() {
               color="orange"
               href="/food"
               cta="맛집 보기"
+            />
+            <FeatureCard
+              tag="행사/축제"
+              title="강릉 지역 행사·축제 한눈에"
+              description="관광공사 공식 데이터로 강릉단오제 등 지역 축제와 행사 일정을 미리 확인하세요."
+              color="rose"
+              href="/events"
+              cta="행사 보기"
             />
             <FeatureCard
               tag="플래너"
@@ -227,6 +241,7 @@ export default function HomePage() {
             <Link href="/spots" className="hover:text-gray-900 transition-colors">워크스팟</Link>
             <Link href="/stay" className="hover:text-gray-900 transition-colors">숙박</Link>
             <Link href="/food" className="hover:text-gray-900 transition-colors">맛집</Link>
+            <Link href="/events" className="hover:text-gray-900 transition-colors">행사/축제</Link>
             <Link href="/ai-curator" className="hover:text-gray-900 transition-colors">AI 큐레이터</Link>
             <Link href="/map" className="hover:text-gray-900 transition-colors">지도</Link>
             <Link href="/planner" className="hover:text-gray-900 transition-colors">플래너</Link>
@@ -248,7 +263,7 @@ function FeatureCard({
   tag: string;
   title: string;
   description: string;
-  color: "blue" | "teal" | "emerald" | "indigo" | "orange" | "gray";
+  color: "blue" | "teal" | "emerald" | "indigo" | "orange" | "gray" | "rose";
   href: string;
   cta: string;
 }) {
@@ -277,6 +292,11 @@ function FeatureCard({
       tag: "bg-orange-100 text-orange-700",
       border: "hover:border-orange-300",
       cta: "text-orange-600 hover:text-orange-800",
+    },
+    rose: {
+      tag: "bg-rose-100 text-rose-700",
+      border: "hover:border-rose-300",
+      cta: "text-rose-600 hover:text-rose-800",
     },
     gray: {
       tag: "bg-gray-100 text-gray-700",

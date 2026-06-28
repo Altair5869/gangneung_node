@@ -1,4 +1,4 @@
-import { TourismApiItem, BarrierFreeItem, WorkSpot, LifeSpot } from "@/types";
+import { TourismApiItem, BarrierFreeItem, WorkSpot, LifeSpot, EventApiItem, EventSpot } from "@/types";
 
 function hashCode(str: string): number {
   let h = 0;
@@ -73,6 +73,23 @@ export function mapTourismToStaySpot(item: TourismApiItem): LifeSpot {
 export function mapTourismToFoodSpot(item: TourismApiItem): LifeSpot {
   const base = mapTourismToLifeSpot(item);
   return { ...base, id: `food-${item.contentid}`, category: "food", tags: ["음식점", "관광공사DB"] };
+}
+
+export function mapTourismToEventSpot(item: EventApiItem): EventSpot {
+  const lat = parseFloat(item.mapy);
+  const lng = parseFloat(item.mapx);
+  return {
+    id: `event-${item.contentid}`,
+    name: item.title,
+    address: [item.addr1, item.addr2].filter(Boolean).join(" ").trim(),
+    lat: isNaN(lat) ? 37.751 : lat,
+    lng: isNaN(lng) ? 128.876 : lng,
+    imageUrl: item.firstimage,
+    startDate: item.eventstartdate ?? "",
+    endDate: item.eventenddate ?? "",
+    eventPlace: item.eventplace,
+    tags: ["행사/축제", "관광공사DB"],
+  };
 }
 
 function parseBarrierField(val?: string): boolean {

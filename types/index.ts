@@ -73,6 +73,25 @@ export interface TourismApiItem {
   overview?: string;
 }
 
+export interface EventApiItem extends TourismApiItem {
+  eventstartdate?: string; // YYYYMMDD
+  eventenddate?: string;   // YYYYMMDD
+  eventplace?: string;
+}
+
+export interface EventSpot {
+  id: string;
+  name: string;
+  address: string;
+  lat: number;
+  lng: number;
+  imageUrl?: string;
+  startDate: string; // YYYYMMDD
+  endDate: string;   // YYYYMMDD
+  eventPlace?: string;
+  tags: string[];
+}
+
 export interface BarrierFreeItem extends TourismApiItem {
   contenttypeid?: string;
   // 무장애 세부 편의시설 정보

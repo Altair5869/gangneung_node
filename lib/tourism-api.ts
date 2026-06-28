@@ -1,4 +1,4 @@
-import { TourismApiItem } from "@/types";
+import { TourismApiItem, EventApiItem } from "@/types";
 
 const KORSERVICE_URL = "https://apis.data.go.kr/B551011/KorService2";
 const BARRIER_FREE_URL = "https://apis.data.go.kr/B551011/KorWithService2";
@@ -128,6 +128,43 @@ export async function getAttractionList(areaCode = "32", sigunguCode = "1") {
     pageNo: "1",
   });
   return extractItems(data);
+}
+
+// ── 행사/축제 (contentTypeId=15, searchFestival2) ─────────
+
+function todayKST(): string {
+  const now = new Date();
+  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  const y = kst.getUTCFullYear();
+  const m = String(kst.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(kst.getUTCDate()).padStart(2, "0");
+  return `${y}${m}${d}`;
+}
+
+export async function getEventList(areaCode = "32", sigunguCode = "1"): Promise<EventApiItem[]> {
+  const params: Record<string, string> = {
+    areaCode,
+    eventStartDate: todayKST(),
+    numOfRows: "30",
+    pageNo: "1",
+  };
+  if (sigunguCode) params.sigunguCode = sigunguCode;
+
+  try {
+    const data = await fetchApi<TourismApiResponse>(KORSERVICE_URL, "searchFestival2", params);
+    const items = extractItems(data) as EventApiItem[];
+    if (items.length > 0) return items;
+  } catch {}
+
+  // sigunguCode 제거 후 재시도 (강원도 전체에서 조회)
+  const fallbackParams: Record<string, string> = {
+    areaCode,
+    eventStartDate: todayKST(),
+    numOfRows: "30",
+    pageNo: "1",
+  };
+  const fallback = await fetchApi<TourismApiResponse>(KORSERVICE_URL, "searchFestival2", fallbackParams);
+  return extractItems(fallback) as EventApiItem[];
 }
 
 // ── 관광지 집중률 예측 (TatsCnctrRateService) ─────────────

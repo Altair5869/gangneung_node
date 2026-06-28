@@ -9,6 +9,7 @@ const NAV_LINKS = [
   { href: "/spots", label: "워크스팟" },
   { href: "/stay", label: "숙박" },
   { href: "/food", label: "맛집" },
+  { href: "/events", label: "행사/축제" },
   { href: "/ai-curator", label: "AI 큐레이터" },
   { href: "/map", label: "지도" },
   { href: "/planner", label: "플래너" },
