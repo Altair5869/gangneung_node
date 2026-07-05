@@ -1,21 +1,11 @@
 import { WorkSpot } from "@/types";
 
-function hashCode(str: string): number {
-  let h = 0;
-  for (let i = 0; i < str.length; i++) { h = Math.imul(31, h) + str.charCodeAt(i) | 0; }
-  return Math.abs(h);
-}
-
-function inferNoise(id: string, name: string): WorkSpot["noise"] {
+function inferNoise(name: string): WorkSpot["noise"] {
   const t = name.toLowerCase();
   if (t.includes("독서실") || t.includes("스터디") || t.includes("study") || t.includes("도서관")) return "quiet";
   if (t.includes("코워킹") || t.includes("공유오피스") || t.includes("coworking")) return "quiet";
   if (t.includes("브루어리") || t.includes("brewery") || t.includes("브루") || t.includes("펍")) return "noisy";
-  // 일반 카페: ID 해시로 quiet 30% / moderate 50% / noisy 20% 결정론적 분산
-  const h = hashCode(id) % 10;
-  if (h < 3) return "quiet";
-  if (h < 8) return "moderate";
-  return "noisy";
+  return null;
 }
 
 // 강릉 주요 구역 중심점 (반경 6km씩 커버)
@@ -92,7 +82,7 @@ export async function getKakaoCafes(): Promise<WorkSpot[]> {
       lng: parseFloat(p.x),
       wifi: { available: null },
       power: { available: null },
-      noise: inferNoise(p.id, p.place_name),
+      noise: inferNoise(p.place_name),
       openHours: "정보 미제공",
       tags: ["카카오맵"],
       imageUrl: "",

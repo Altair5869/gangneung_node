@@ -52,7 +52,7 @@ function buildWorkSpotsContext(spots: WorkSpot[]): string {
   return spots
     .map(
       (s) =>
-        `id:${s.id} | ${s.name} (${s.category}) | lat:${s.lat.toFixed(4)} lng:${s.lng.toFixed(4)} | 소음:${s.noise} | WiFi:${s.wifi.available ? "O" : "X"} | 콘센트:${s.power.available ? "O" : "X"} | 태그:[${s.tags.join(",")}]`
+        `id:${s.id} | ${s.name} (${s.category}) | lat:${s.lat.toFixed(4)} lng:${s.lng.toFixed(4)} | 소음:${s.noise ?? "미확인"} | WiFi:${s.wifi.available ? "O" : "X"} | 콘센트:${s.power.available ? "O" : "X"} | 태그:[${s.tags.join(",")}]`
     )
     .join("\n");
 }
