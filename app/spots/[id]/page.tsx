@@ -118,13 +118,13 @@ export default async function SpotDetailPage({
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <SpecCard
                   label="WiFi"
-                  value={spot.wifi.available ? `${spot.wifi.speedMbps ?? "?"}Mbps` : "없음"}
+                  value={spot.wifi.available === true ? `${spot.wifi.speedMbps ?? "?"}Mbps` : spot.wifi.available === false ? "없음" : "정보 없음"}
                   available={spot.wifi.available}
                   accentColor="sky"
                 />
                 <SpecCard
                   label="콘센트"
-                  value={spot.power.available ? `${spot.power.outlets ?? "?"}개 이상` : "없음"}
+                  value={spot.power.available === true ? `${spot.power.outlets ?? "?"}개 이상` : spot.power.available === false ? "없음" : "정보 없음"}
                   available={spot.power.available}
                   accentColor="purple"
                 />
@@ -230,7 +230,7 @@ function SpecCard({
 }: {
   label: string;
   value: string;
-  available: boolean;
+  available: boolean | null;
   accentColor: "sky" | "purple" | "gray";
 }) {
   const accent = {

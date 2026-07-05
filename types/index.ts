@@ -6,11 +6,11 @@ export interface WorkSpot {
   lat: number;
   lng: number;
   wifi: {
-    available: boolean;
+    available: boolean | null;
     speedMbps?: number;
   };
   power: {
-    available: boolean;
+    available: boolean | null;
     outlets?: number;
   };
   noise: "quiet" | "moderate" | "noisy";

@@ -35,9 +35,9 @@ export default function WorkEnvScore({ spot }: { spot: WorkSpot }) {
   const { bar, text, ring } = scoreColor(score);
 
   const checks: Record<(typeof CRITERIA)[number]["key"], boolean> = {
-    wifi:      spot.wifi.available,
+    wifi:      spot.wifi.available ?? false,
     wifiSpeed: (spot.wifi.speedMbps ?? 0) >= 100,
-    power:     spot.power.available,
+    power:     spot.power.available ?? false,
     quiet:     spot.noise === "quiet",
     uncrowded: spot.congestion === "low" || spot.congestion === "medium",
   };

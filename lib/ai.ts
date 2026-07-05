@@ -63,6 +63,16 @@ function buildLifeSpotsContext(spots: LifeSpot[]): string {
     .join("\n");
 }
 
+export function calculateHaversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 function nearestNeighborSort(spots: RouteStop[]): RouteStop[] {
   if (spots.length <= 2) return spots;
   const remaining = [...spots];
@@ -72,7 +82,7 @@ function nearestNeighborSort(spots: RouteStop[]): RouteStop[] {
     let nearestIdx = 0;
     let nearestDist = Infinity;
     remaining.forEach((s, i) => {
-      const d = Math.hypot(s.lat - cur.lat, s.lng - cur.lng);
+      const d = calculateHaversineDistance(cur.lat, cur.lng, s.lat, s.lng);
       if (d < nearestDist) { nearestDist = d; nearestIdx = i; }
     });
     result.push(remaining.splice(nearestIdx, 1)[0]);
