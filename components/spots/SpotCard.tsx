@@ -83,14 +83,24 @@ export default function SpotCard({ spot }: { spot: WorkSpot }) {
             <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", noiseBadge[spot.noise])}>
               {noiseLabel(spot.noise)}
             </span>
-            {spot.wifi.available && (
+            {spot.wifi.available === true && (
               <span className="text-xs px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 font-medium">
                 WiFi
               </span>
             )}
-            {spot.power.available && (
+            {spot.wifi.available === null && (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-400 font-medium">
+                WiFi 미확인
+              </span>
+            )}
+            {spot.power.available === true && (
               <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 font-medium">
                 콘센트
+              </span>
+            )}
+            {spot.power.available === null && (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-400 font-medium">
+                콘센트 미확인
               </span>
             )}
             {spot.barrierFree !== undefined && (

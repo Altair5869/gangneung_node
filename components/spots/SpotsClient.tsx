@@ -56,8 +56,8 @@ export default function SpotsClient({ allSpots }: { allSpots: WorkSpot[] }) {
       }
       if (category && s.category !== category) return false;
       if (noise && s.noise !== noise) return false;
-      if (wifi && !s.wifi.available) return false;
-      if (power && !s.power.available) return false;
+      if (wifi && s.wifi.available !== true) return false;
+      if (power && s.power.available !== true) return false;
       if (barrierFree && s.barrierFree === undefined) return false;
       if (minScore > 0 && calcScore(s) < minScore) return false;
       return true;
