@@ -5,7 +5,8 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function noiseLabel(noise: "quiet" | "moderate" | "noisy") {
+export function noiseLabel(noise: "quiet" | "moderate" | "noisy" | null) {
+  if (!noise) return "소음 미확인";
   return { quiet: "조용함", moderate: "보통", noisy: "시끄러움" }[noise];
 }
 

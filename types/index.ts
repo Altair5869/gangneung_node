@@ -13,7 +13,7 @@ export interface WorkSpot {
     available: boolean | null;
     outlets?: number;
   };
-  noise: "quiet" | "moderate" | "noisy";
+  noise: "quiet" | "moderate" | "noisy" | null;
   openHours: string;
   congestion?: "low" | "medium" | "high";
   imageUrl?: string;
