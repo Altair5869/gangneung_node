@@ -19,11 +19,12 @@
 
 ## 데이터 관련 필수 규칙
 
-1. **`WorkSpot.wifi`, `WorkSpot.power` 필드에 하드코딩 값을 넣지 않는다.** 관광공사 API·카카오 API 응답에는 와이파이/콘센트 정보가 없다. `available` 값을 모르면 반드시 `null`을 사용한다. `true`나 임의의 `speedMbps` 숫자를 기본값으로 채우지 않는다.
-2. **`WorkSpot.barrierFree` 필드는 실제 데이터다.** `lib/tourism-mapper.ts`의 `parseBarrierField` 함수가 관광공사 무장애 API의 실제 응답 문자열(`item.wheelchair`, `item.elevator` 등)을 파싱한 결과이므로, 검증 로직에 그대로 사용해도 된다.
-3. **`WorkSpot.noise` 필드는 해시 기반 추정값이 섞여 있다.** `lib/tourism-mapper.ts`의 `inferNoise` 함수는 키워드 매칭이 실패하면 `hashCode(contentId) % 10`으로 quiet/moderate/noisy를 결정한다. 이건 의사난수이지 실제 소음 측정값이 아니다. wifi/power를 고칠 때 같이 수정한다.
-4. **`WorkSpot.congestion`은 부분적으로 실제 데이터다.** `getCongestionMap`에서 실데이터가 있으면 사용하고, 없으면 `estimateCongestion`으로 시간대 기반 추정치를 쓴다. UI에 노출할 때 이 둘을 구분하지 않는다.
-5. 자세한 필드별 진위 표는 `docs/DATA_STATUS.md` 참고.
+1. **`WorkSpot.wifi.available`, `WorkSpot.power.available` 필드에 하드코딩 값을 넣지 않는다.** 관광공사 API·카카오 API 응답에는 와이파이/콘센트 정보가 없다. `available` 값을 모르면 반드시 `null`을 사용한다. 이 두 필드는 전화 확인이나 직접 방문으로 사실 확인이 가능하므로 검증 조건에 사용해도 된다.
+2. **`WorkSpot.wifi.speedMbps` 필드는 수집하지 않는다.** 전화로 속도(Mbps)를 물어봐도 업체 직원이 답을 모른다. 블로그 리뷰에도 정확한 숫자가 거의 없다. 이 필드는 항상 `null`로 두고, Node 2 검증 조건에서 "빠른 WiFi" 항목 자체를 제외한다.
+3. **`WorkSpot.noise` 필드는 확정값이 아니라 신호(signal)로 다룬다.** 소음은 시간대·요일마다 바뀌고 사람마다 기준이 다르므로, 전화로 "조용해요?"라고 물어도 검증이 안 된다. `noise` 필드를 `"언급됨-조용함" | "언급됨-시끄러움" | "언급없음"` 3단계 신호로 관리하고, 네이버 검색 오픈API(블로그)로 채운다. "확정된 사실"인 것처럼 `quiet`/`noisy`로 표기하지 않는다.
+4. **`WorkSpot.barrierFree` 필드는 실제 데이터다.** `lib/tourism-mapper.ts`의 `parseBarrierField` 함수가 관광공사 무장애 API의 실제 응답 문자열(`item.wheelchair`, `item.elevator` 등)을 파싱한 결과이므로, 검증 로직에 그대로 사용해도 된다.
+5. **`WorkSpot.congestion`은 부분적으로 실제 데이터다.** `getCongestionMap`에서 실데이터가 있으면 사용하고, 없으면 `estimateCongestion`으로 시간대 기반 추정치를 쓴다. UI에 노출할 때 이 둘을 구분하지 않는다.
+6. 자세한 필드별 진위 표는 `docs/DATA_STATUS.md` 참고.
 
 ## 외부 데이터 수집 규칙
 

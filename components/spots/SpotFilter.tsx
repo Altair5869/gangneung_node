@@ -6,9 +6,8 @@ import { cn } from "@/lib/utils";
 
 const NOISE_OPTIONS = [
   { value: "", label: "전체" },
-  { value: "quiet", label: "조용함" },
-  { value: "moderate", label: "보통" },
-  { value: "noisy", label: "시끄러움" },
+  { value: "언급됨-조용함", label: "조용함 언급" },
+  { value: "언급됨-시끄러움", label: "시끄러움 언급" },
 ];
 
 export default function SpotFilter() {

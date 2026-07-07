@@ -5,9 +5,9 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function noiseLabel(noise: "quiet" | "moderate" | "noisy" | null) {
-  if (!noise) return "소음 미확인";
-  return { quiet: "조용함", moderate: "보통", noisy: "시끄러움" }[noise];
+export function noiseLabel(noise: "언급됨-조용함" | "언급됨-시끄러움" | "언급없음") {
+  if (noise === "언급없음") return "소음 미확인";
+  return { "언급됨-조용함": "조용함 언급", "언급됨-시끄러움": "시끄러움 언급" }[noise];
 }
 
 export function congestionLabel(level?: "low" | "medium" | "high") {

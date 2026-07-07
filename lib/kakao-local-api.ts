@@ -2,10 +2,10 @@ import { WorkSpot } from "@/types";
 
 function inferNoise(name: string): WorkSpot["noise"] {
   const t = name.toLowerCase();
-  if (t.includes("독서실") || t.includes("스터디") || t.includes("study") || t.includes("도서관")) return "quiet";
-  if (t.includes("코워킹") || t.includes("공유오피스") || t.includes("coworking")) return "quiet";
-  if (t.includes("브루어리") || t.includes("brewery") || t.includes("브루") || t.includes("펍")) return "noisy";
-  return null;
+  if (t.includes("독서실") || t.includes("스터디") || t.includes("study") || t.includes("도서관")) return "언급됨-조용함";
+  if (t.includes("코워킹") || t.includes("공유오피스") || t.includes("coworking")) return "언급됨-조용함";
+  if (t.includes("브루어리") || t.includes("brewery") || t.includes("브루") || t.includes("펍")) return "언급됨-시끄러움";
+  return "언급없음";
 }
 
 // 강릉 주요 구역 중심점 (반경 6km씩 커버)

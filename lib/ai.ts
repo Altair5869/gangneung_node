@@ -32,7 +32,7 @@ function preFilter(spots: WorkSpot[], request: CurationRequest): WorkSpot[] {
   let filtered = [...spots];
 
   if (request.preferences.includes("조용한 환경"))
-    filtered = filtered.filter((s) => s.noise === "quiet");
+    filtered = filtered.filter((s) => s.noise === "언급됨-조용함");
   if (request.preferences.includes("빠른 WiFi"))
     filtered = filtered.filter((s) => s.wifi.available);
   if (request.preferences.includes("콘센트 필수"))
@@ -52,7 +52,7 @@ function buildWorkSpotsContext(spots: WorkSpot[]): string {
   return spots
     .map(
       (s) =>
-        `id:${s.id} | ${s.name} (${s.category}) | lat:${s.lat.toFixed(4)} lng:${s.lng.toFixed(4)} | 소음:${s.noise ?? "미확인"} | WiFi:${s.wifi.available ? "O" : "X"} | 콘센트:${s.power.available ? "O" : "X"} | 태그:[${s.tags.join(",")}]`
+        `id:${s.id} | ${s.name} (${s.category}) | lat:${s.lat.toFixed(4)} lng:${s.lng.toFixed(4)} | 소음:${s.noise === "언급없음" ? "미확인" : s.noise} | WiFi:${s.wifi.available ? "O" : "X"} | 콘센트:${s.power.available ? "O" : "X"} | 태그:[${s.tags.join(",")}]`
     )
     .join("\n");
 }

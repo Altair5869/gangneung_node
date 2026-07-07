@@ -2,11 +2,11 @@ import { TourismApiItem, BarrierFreeItem, WorkSpot, LifeSpot, EventApiItem, Even
 
 function inferNoise(title: string, category: WorkSpot["category"]): WorkSpot["noise"] {
   const t = title.toLowerCase();
-  if (category === "library") return "quiet";
-  if (t.includes("독서실") || t.includes("스터디") || t.includes("study")) return "quiet";
-  if (t.includes("코워킹") || t.includes("공유오피스") || t.includes("coworking")) return "quiet";
-  if (t.includes("브루어리") || t.includes("brewery") || t.includes("브루") || t.includes("펍") || t.includes("pub")) return "noisy";
-  return null;
+  if (category === "library") return "언급됨-조용함";
+  if (t.includes("독서실") || t.includes("스터디") || t.includes("study")) return "언급됨-조용함";
+  if (t.includes("코워킹") || t.includes("공유오피스") || t.includes("coworking")) return "언급됨-조용함";
+  if (t.includes("브루어리") || t.includes("brewery") || t.includes("브루") || t.includes("펍") || t.includes("pub")) return "언급됨-시끄러움";
+  return "언급없음";
 }
 
 function inferCategory(title: string): WorkSpot["category"] {

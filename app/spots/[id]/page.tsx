@@ -29,9 +29,8 @@ const categoryGradient: Record<string, string> = {
 };
 
 const noiseBg: Record<string, string> = {
-  quiet: "bg-green-100 text-green-700",
-  moderate: "bg-yellow-100 text-yellow-700",
-  noisy: "bg-red-100 text-red-700",
+  "언급됨-조용함": "bg-green-100 text-green-700",
+  "언급됨-시끄러움": "bg-red-100 text-red-700",
 };
 
 const congestionStyle: Record<string, { bg: string; dot: string }> = {
@@ -136,7 +135,7 @@ export default async function SpotDetailPage({
                 />
                 <div className="bg-white border border-gray-200 rounded-2xl p-4">
                   <p className="text-xs text-gray-400 mb-2">소음도</p>
-                  <span className={cn("text-xs font-semibold px-2.5 py-1 rounded-full", spot.noise ? noiseBg[spot.noise] : "bg-gray-100 text-gray-400")}>
+                  <span className={cn("text-xs font-semibold px-2.5 py-1 rounded-full", spot.noise !== "언급없음" ? noiseBg[spot.noise] : "bg-gray-100 text-gray-400")}>
                     {noiseLabel(spot.noise)}
                   </span>
                 </div>

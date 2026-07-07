@@ -10,8 +10,7 @@ function calcScore(spot: WorkSpot): number {
   if (spot.wifi.available) score += 30;
   if ((spot.wifi.speedMbps ?? 0) >= 100) score += 10;
   if (spot.power.available) score += 25;
-  if (spot.noise === "quiet") score += 25;
-  else if (spot.noise === "moderate") score += 10;
+  if (spot.noise === "언급됨-조용함") score += 25;
   if (spot.congestion === "low") score += 10;
   else if (spot.congestion === "medium") score += 5;
   return score;
@@ -28,9 +27,8 @@ const CATEGORIES: { value: WorkSpot["category"] | ""; label: string }[] = [
 
 const NOISE_OPTIONS = [
   { value: "", label: "전체" },
-  { value: "quiet", label: "조용함" },
-  { value: "moderate", label: "보통" },
-  { value: "noisy", label: "시끄러움" },
+  { value: "언급됨-조용함", label: "조용함 언급" },
+  { value: "언급됨-시끄러움", label: "시끄러움 언급" },
 ];
 
 const SCORE_OPTIONS = [

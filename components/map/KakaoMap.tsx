@@ -184,9 +184,8 @@ export default function KakaoMap({ spots }: { spots: WorkSpot[] }) {
             <p className="text-xs text-gray-400">소음도</p>
             <div className="flex gap-1">
               {[
-                { value: "quiet", label: "조용" },
-                { value: "moderate", label: "보통" },
-                { value: "noisy", label: "시끄" },
+                { value: "언급됨-조용함", label: "조용 언급" },
+                { value: "언급됨-시끄러움", label: "시끄 언급" },
               ].map((opt) => (
                 <button
                   key={opt.value}

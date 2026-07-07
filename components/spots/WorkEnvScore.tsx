@@ -6,8 +6,7 @@ function calcScore(spot: WorkSpot): { score: number; label: string } {
   if (spot.wifi.available) score += 30;
   if ((spot.wifi.speedMbps ?? 0) >= 100) score += 10;
   if (spot.power.available) score += 25;
-  if (spot.noise === "quiet") score += 25;
-  else if (spot.noise === "moderate") score += 10;
+  if (spot.noise === "언급됨-조용함") score += 25;
   if (spot.congestion === "low") score += 10;
   else if (spot.congestion === "medium") score += 5;
 
@@ -19,7 +18,7 @@ const CRITERIA = [
   { key: "wifi",       label: "WiFi 가용" },
   { key: "wifiSpeed",  label: "WiFi 100Mbps 이상" },
   { key: "power",      label: "콘센트" },
-  { key: "quiet",      label: "조용한 환경" },
+  { key: "quiet",      label: "조용함 언급" },
   { key: "uncrowded",  label: "여유로운 혼잡도" },
 ] as const;
 
@@ -38,7 +37,7 @@ export default function WorkEnvScore({ spot }: { spot: WorkSpot }) {
     wifi:      spot.wifi.available ?? false,
     wifiSpeed: (spot.wifi.speedMbps ?? 0) >= 100,
     power:     spot.power.available ?? false,
-    quiet:     spot.noise === "quiet",
+    quiet:     spot.noise === "언급됨-조용함",
     uncrowded: spot.congestion === "low" || spot.congestion === "medium",
   };
 

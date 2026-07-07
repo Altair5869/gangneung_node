@@ -87,10 +87,11 @@ def main():
             "title": item.get("title", ""),
             "addr1": item.get("addr1", ""),
             "overview": item.get("overview", "").replace("\n", " ").strip(),
-            # 아래 4개는 직접 채우는 컬럼. 빈 값으로 시작.
+            # wifi_real / power_real은 전화 확인·직접 방문으로 채우는 사실 기반 값.
+            # noise_signal은 네이버 검색 API 결과로 채우는 신호 기반 값 (전화로 검증 불가능).
             "wifi_real": "",       # true / false / 모름
             "power_real": "",      # true / false / 모름
-            "noise_real": "",      # quiet / moderate / noisy / 모름
+            "noise_signal": "",    # 언급됨-조용함 / 언급됨-시끄러움 / 언급없음
             "workation_note": "",  # 직접 작성하는 워케이션 특화 1~2문장
         })
         print(f"[{i}/{len(content_ids)}] {cid} 처리 완료")
@@ -100,7 +101,7 @@ def main():
     with out_path.open("w", newline="", encoding="utf-8-sig") as f:
         writer = csv.DictWriter(f, fieldnames=[
             "contentid", "title", "addr1", "overview",
-            "wifi_real", "power_real", "noise_real", "workation_note",
+            "wifi_real", "power_real", "noise_signal", "workation_note",
         ])
         writer.writeheader()
         writer.writerows(rows)

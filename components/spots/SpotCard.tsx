@@ -18,10 +18,9 @@ const categoryGradient: Record<WorkSpot["category"], string> = {
   other: "from-gray-400 to-slate-500",
 };
 
-const noiseBadge: Record<"quiet" | "moderate" | "noisy", string> = {
-  quiet: "bg-green-100 text-green-700",
-  moderate: "bg-yellow-100 text-yellow-700",
-  noisy: "bg-red-100 text-red-700",
+const noiseBadge: Record<"언급됨-조용함" | "언급됨-시끄러움", string> = {
+  "언급됨-조용함": "bg-green-100 text-green-700",
+  "언급됨-시끄러움": "bg-red-100 text-red-700",
 };
 
 const congestionStyle: Record<"low" | "medium" | "high", { dot: string; text: string }> = {
@@ -80,7 +79,7 @@ export default function SpotCard({ spot }: { spot: WorkSpot }) {
 
           {/* 편의시설 뱃지 */}
           <div className="flex items-center gap-1.5 flex-wrap">
-            <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", spot.noise ? noiseBadge[spot.noise] : "bg-gray-100 text-gray-400")}>
+            <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", spot.noise !== "언급없음" ? noiseBadge[spot.noise] : "bg-gray-100 text-gray-400")}>
               {noiseLabel(spot.noise)}
             </span>
             {spot.wifi.available === true && (

@@ -48,7 +48,7 @@ def main():
     library_path = out_dir / "selected_library.csv"
     with library_path.open("w", newline="", encoding="utf-8-sig") as f:
         writer = csv.DictWriter(f, fieldnames=["contentid", "title", "addr1", "category",
-                                                "wifi_real", "power_real", "noise_real", "workation_note"])
+                                                "wifi_real", "power_real", "noise_signal", "workation_note"])
         writer.writeheader()
         for r in kakao_rows:
             writer.writerow({
@@ -58,7 +58,7 @@ def main():
                 "category": r["category"],
                 "wifi_real": "",
                 "power_real": "",
-                "noise_real": "",
+                "noise_signal": "",
                 "workation_note": "",
             })
 
