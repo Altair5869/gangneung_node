@@ -3,7 +3,18 @@ import { getSpotById, MOCK_SPOTS } from "@/lib/spots-data";
 import { getDetailCommon, getBarrierFreeDetail } from "@/lib/tourism-api";
 import { mapTourismToWorkSpot, mapBarrierFreeToWorkSpot } from "@/lib/tourism-mapper";
 import { getKakaoCafes } from "@/lib/kakao-local-api";
-import { BarrierFreeItem } from "@/types";
+import { VERIFIED_SPOTS } from "@/lib/verified-spots";
+import { BarrierFreeItem, WorkSpot } from "@/types";
+
+const verifiedById = new Map(VERIFIED_SPOTS.map((v) => [v.id, v]));
+const verifiedByContentId = new Map(VERIFIED_SPOTS.map((v) => [v.tourismContentId, v]));
+
+// 실측 데이터(24곳)가 있으면 wifi/power/noise를 그 값으로 덮어쓴다.
+function applyVerified(spot: WorkSpot): WorkSpot {
+  const v = spot.tourismContentId ? verifiedByContentId.get(spot.tourismContentId) : undefined;
+  if (!v) return spot;
+  return { ...spot, wifi: v.wifi, power: v.power, noise: v.noise, tags: Array.from(new Set([...spot.tags, ...v.tags])) };
+}
 
 export async function GET(
   _request: Request,
@@ -14,6 +25,10 @@ export async function GET(
   // mock 데이터에서 먼저 탐색
   const mockSpot = getSpotById(id);
   if (mockSpot) return NextResponse.json({ spot: mockSpot });
+
+  // 실측 데이터 전용 ID (관광공사/카카오 API에 없는 곳, 예: 도서관)
+  const verifiedOnly = verifiedById.get(id);
+  if (verifiedOnly) return NextResponse.json({ spot: verifiedOnly });
 
   // barrier-free-{contentId} 형태의 ID 처리
   if (id.startsWith("barrier-free-")) {
@@ -30,7 +45,7 @@ export async function GET(
         const merged = bfDetail
           ? mapBarrierFreeToWorkSpot({ ...base, ...bfDetail } as BarrierFreeItem)
           : { ...mapTourismToWorkSpot(base), id, barrierFree: {} };
-        return NextResponse.json({ spot: merged });
+        return NextResponse.json({ spot: applyVerified(merged) });
       }
     } catch {
       // fall through to 404
@@ -44,7 +59,7 @@ export async function GET(
       const item = await getDetailCommon(contentId);
       if (item) {
         const spot = mapTourismToWorkSpot(item);
-        return NextResponse.json({ spot });
+        return NextResponse.json({ spot: applyVerified(spot) });
       }
     } catch {
       // fall through to 404
@@ -56,7 +71,7 @@ export async function GET(
     try {
       const kakaoSpots = await getKakaoCafes();
       const spot = kakaoSpots.find((s) => s.id === id);
-      if (spot) return NextResponse.json({ spot });
+      if (spot) return NextResponse.json({ spot: applyVerified(spot) });
     } catch {
       // fall through to 404
     }

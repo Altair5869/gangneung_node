@@ -4,6 +4,7 @@ import { getAreaBasedList, getBarrierFreeList, getCongestionMap } from "@/lib/to
 import { mapTourismToWorkSpot, mapBarrierFreeToWorkSpot } from "@/lib/tourism-mapper";
 import { getKakaoCafes } from "@/lib/kakao-local-api";
 import { estimateCongestion } from "@/lib/utils";
+import { VERIFIED_SPOTS } from "@/lib/verified-spots";
 import { WorkSpot } from "@/types";
 
 const WORKATION_KEYWORDS = [
@@ -58,10 +59,11 @@ export async function GET(request: NextRequest) {
     const kakaoSpots =
       kakaoCafes.status === "fulfilled" ? kakaoCafes.value : [];
 
-    // 카카오 카페 ID 집합 — 이름 기준 중복 제거
+    // 카카오 카페 ID 집합 — 이름 기준 중복 제거 (실측 데이터 24곳도 포함해, 관광공사 목록에 이번에 안 잡혀도 카카오 쪽 중복이 안 생기게 한다)
     const existingNames = new Set([
       ...bfSpots.map((s) => s.name),
       ...regularSpots.map((s) => s.name),
+      ...VERIFIED_SPOTS.map((s) => s.name),
     ]);
     const deduplicatedKakao = kakaoSpots.filter((s) => !existingNames.has(s.name));
 
@@ -75,12 +77,28 @@ export async function GET(request: NextRequest) {
 
     // 혼잡도: 관광공사 실데이터 우선, 없으면 시간대 기반 추정
     const cMap = congestionMap.status === "fulfilled" ? congestionMap.value : new Map();
-    spots = merged.map((s) => ({
+    const withCongestion = merged.map((s) => ({
       ...s,
       congestion: cMap.get(s.tourismContentId ?? "") ?? estimateCongestion(s.id),
     }));
+
+    // 실측 데이터(24곳): wifi/power/noise를 전화 확인·방문·웹 스크리닝으로 확정한 값으로 덮어쓰고,
+    // 관광공사/카카오 API가 이번 요청에서 못 가져온 곳(주로 도서관)은 그대로 추가한다.
+    const verifiedById = new Map(VERIFIED_SPOTS.map((v) => [v.tourismContentId, v]));
+    const overridden = withCongestion.map((s) => {
+      const v = s.tourismContentId ? verifiedById.get(s.tourismContentId) : undefined;
+      if (!v) return s;
+      return { ...s, wifi: v.wifi, power: v.power, noise: v.noise, tags: Array.from(new Set([...s.tags, ...v.tags])) };
+    });
+    const presentContentIds = new Set(overridden.map((s) => s.tourismContentId).filter(Boolean));
+    const missingVerified = VERIFIED_SPOTS.filter((v) => !presentContentIds.has(v.tourismContentId)).map((v) => ({
+      ...v,
+      congestion: cMap.get(v.tourismContentId ?? "") ?? estimateCongestion(v.id),
+    }));
+
+    spots = [...overridden, ...missingVerified];
   } catch {
-    spots = MOCK_SPOTS;
+    spots = [...MOCK_SPOTS, ...VERIFIED_SPOTS];
   }
 
   if (noise) spots = spots.filter((s) => s.noise === noise);
