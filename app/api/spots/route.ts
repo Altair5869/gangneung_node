@@ -85,7 +85,7 @@ export async function GET(request: NextRequest) {
 
   if (noise) spots = spots.filter((s) => s.noise === noise);
   if (wifi === "true") spots = spots.filter((s) => s.wifi.available);
-  if (power === "true") spots = spots.filter((s) => s.power.available);
+  if (power === "true") spots = spots.filter((s) => s.power.level === "충분함" || s.power.level === "제한적");
   if (barrierFree === "true") spots = spots.filter((s) => s.barrierFree !== undefined);
 
   return NextResponse.json({ spots });

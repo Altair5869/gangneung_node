@@ -10,8 +10,7 @@ export interface WorkSpot {
     speedMbps?: number;
   };
   power: {
-    available: boolean | null;
-    outlets?: number;
+    level: "충분함" | "제한적" | "없음" | null;
   };
   noise: "언급됨-조용함" | "언급됨-시끄러움" | "언급없음";
   openHours: string;

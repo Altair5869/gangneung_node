@@ -29,7 +29,7 @@ export function mapTourismToWorkSpot(item: TourismApiItem): WorkSpot {
     lat: isNaN(lat) ? 37.751 : lat,
     lng: isNaN(lng) ? 128.876 : lng,
     wifi: { available: null },
-    power: { available: null },
+    power: { level: null },
     noise: inferNoise(item.title, inferCategory(item.title)),
     openHours: "정보 미제공",
     tags: ["관광공사DB"],

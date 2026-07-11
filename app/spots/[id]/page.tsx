@@ -123,8 +123,8 @@ export default async function SpotDetailPage({
                 />
                 <SpecCard
                   label="콘센트"
-                  value={spot.power.available === true ? `${spot.power.outlets ?? "?"}개 이상` : spot.power.available === false ? "없음" : "정보 없음"}
-                  available={spot.power.available}
+                  value={spot.power.level ?? "정보 없음"}
+                  available={spot.power.level === null ? null : spot.power.level !== "없음"}
                   accentColor="purple"
                 />
                 <SpecCard

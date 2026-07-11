@@ -61,6 +61,7 @@ export default function SpotFilter() {
         >
           <span>WiFi</span>
         </button>
+        {/* "콘센트" 필터는 충분함/제한적 여부를 통합해 있음/없음으로 단순화 (level: "없음"|null이면 제외) */}
         <button
           onClick={() => update("power", power ? null : "true")}
           className={cn(

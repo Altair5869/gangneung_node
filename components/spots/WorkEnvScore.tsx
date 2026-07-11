@@ -1,11 +1,12 @@
 import { WorkSpot } from "@/types";
-import { cn } from "@/lib/utils";
+import { cn, powerLabel } from "@/lib/utils";
 
 function calcScore(spot: WorkSpot): { score: number; label: string } {
   let score = 0;
   if (spot.wifi.available) score += 30;
   if ((spot.wifi.speedMbps ?? 0) >= 100) score += 10;
-  if (spot.power.available) score += 25;
+  if (spot.power.level === "충분함") score += 25;
+  else if (spot.power.level === "제한적") score += 10;
   if (spot.noise === "언급됨-조용함") score += 25;
   if (spot.congestion === "low") score += 10;
   else if (spot.congestion === "medium") score += 5;
@@ -17,7 +18,7 @@ function calcScore(spot: WorkSpot): { score: number; label: string } {
 const CRITERIA = [
   { key: "wifi",       label: "WiFi 가용" },
   { key: "wifiSpeed",  label: "WiFi 100Mbps 이상" },
-  { key: "power",      label: "콘센트" },
+  { key: "power",      label: "콘센트 (충분함/제한적)" },
   { key: "quiet",      label: "조용함 언급" },
   { key: "uncrowded",  label: "여유로운 혼잡도" },
 ] as const;
@@ -36,7 +37,7 @@ export default function WorkEnvScore({ spot }: { spot: WorkSpot }) {
   const checks: Record<(typeof CRITERIA)[number]["key"], boolean> = {
     wifi:      spot.wifi.available ?? false,
     wifiSpeed: (spot.wifi.speedMbps ?? 0) >= 100,
-    power:     spot.power.available ?? false,
+    power:     spot.power.level === "충분함" || spot.power.level === "제한적",
     quiet:     spot.noise === "언급됨-조용함",
     uncrowded: spot.congestion === "low" || spot.congestion === "medium",
   };
@@ -73,7 +74,7 @@ export default function WorkEnvScore({ spot }: { spot: WorkSpot }) {
               {checks[c.key] ? "✓" : "✗"}
             </span>
             <span className={checks[c.key] ? "text-gray-700" : "text-gray-400"}>
-              {c.label}
+              {c.key === "power" ? powerLabel(spot.power.level) : c.label}
             </span>
           </li>
         ))}

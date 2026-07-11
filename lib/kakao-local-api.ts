@@ -81,7 +81,7 @@ export async function getKakaoCafes(): Promise<WorkSpot[]> {
       lat: parseFloat(p.y),
       lng: parseFloat(p.x),
       wifi: { available: null },
-      power: { available: null },
+      power: { level: null },
       noise: inferNoise(p.place_name),
       openHours: "정보 미제공",
       tags: ["카카오맵"],

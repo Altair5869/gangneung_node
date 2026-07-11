@@ -1,10 +1,15 @@
 import Link from "next/link";
 import { WorkSpot } from "@/types";
-import { cn, noiseLabel, congestionLabel } from "@/lib/utils";
+import { cn, noiseLabel, congestionLabel, powerLabel } from "@/lib/utils";
 
 const noiseBadge: Record<"언급됨-조용함" | "언급됨-시끄러움", string> = {
   "언급됨-조용함": "bg-green-100 text-green-700",
   "언급됨-시끄러움": "bg-red-100 text-red-700",
+};
+
+const powerBadge: Record<"충분함" | "제한적", string> = {
+  "충분함": "bg-purple-100 text-purple-700",
+  "제한적": "bg-amber-100 text-amber-700",
 };
 
 const congestionDot: Record<"low" | "medium" | "high", string> = {
@@ -62,9 +67,9 @@ export default function MapSpotCard({
             WiFi {spot.wifi.speedMbps}Mbps
           </span>
         )}
-        {spot.power.available && (
-          <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 font-medium">
-            콘센트
+        {(spot.power.level === "충분함" || spot.power.level === "제한적") && (
+          <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", powerBadge[spot.power.level])}>
+            {powerLabel(spot.power.level)}
           </span>
         )}
         <span className="text-xs text-gray-400">{spot.openHours}</span>

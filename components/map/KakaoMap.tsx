@@ -23,7 +23,7 @@ interface Filters {
 function isVisible(spot: WorkSpot, filters: Filters): boolean {
   if (filters.noise && spot.noise !== filters.noise) return false;
   if (filters.wifi && !spot.wifi.available) return false;
-  if (filters.power && !spot.power.available) return false;
+  if (filters.power && spot.power.level !== "충분함" && spot.power.level !== "제한적") return false;
   return true;
 }
 

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { WorkSpot } from "@/types";
-import { cn, noiseLabel, congestionLabel } from "@/lib/utils";
+import { cn, noiseLabel, congestionLabel, powerLabel } from "@/lib/utils";
 
 const categoryLabel: Record<WorkSpot["category"], string> = {
   cafe: "카페",
@@ -21,6 +21,12 @@ const categoryGradient: Record<WorkSpot["category"], string> = {
 const noiseBadge: Record<"언급됨-조용함" | "언급됨-시끄러움", string> = {
   "언급됨-조용함": "bg-green-100 text-green-700",
   "언급됨-시끄러움": "bg-red-100 text-red-700",
+};
+
+const powerBadge: Record<"충분함" | "제한적" | "없음", string> = {
+  "충분함": "bg-purple-100 text-purple-700",
+  "제한적": "bg-amber-100 text-amber-700",
+  "없음": "bg-gray-100 text-gray-400",
 };
 
 const congestionStyle: Record<"low" | "medium" | "high", { dot: string; text: string }> = {
@@ -92,12 +98,12 @@ export default function SpotCard({ spot }: { spot: WorkSpot }) {
                 WiFi 미확인
               </span>
             )}
-            {spot.power.available === true && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 font-medium">
-                콘센트
+            {spot.power.level !== null && (
+              <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", powerBadge[spot.power.level])}>
+                {powerLabel(spot.power.level)}
               </span>
             )}
-            {spot.power.available === null && (
+            {spot.power.level === null && (
               <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-400 font-medium">
                 콘센트 미확인
               </span>

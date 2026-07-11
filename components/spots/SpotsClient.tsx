@@ -9,7 +9,8 @@ function calcScore(spot: WorkSpot): number {
   let score = 0;
   if (spot.wifi.available) score += 30;
   if ((spot.wifi.speedMbps ?? 0) >= 100) score += 10;
-  if (spot.power.available) score += 25;
+  if (spot.power.level === "충분함") score += 25;
+  else if (spot.power.level === "제한적") score += 10;
   if (spot.noise === "언급됨-조용함") score += 25;
   if (spot.congestion === "low") score += 10;
   else if (spot.congestion === "medium") score += 5;
@@ -31,6 +32,13 @@ const NOISE_OPTIONS = [
   { value: "언급됨-시끄러움", label: "시끄러움 언급" },
 ];
 
+const POWER_OPTIONS = [
+  { value: "", label: "전체" },
+  { value: "충분함", label: "충분함" },
+  { value: "제한적", label: "제한적" },
+  { value: "없음", label: "없음" },
+];
+
 const SCORE_OPTIONS = [
   { value: 0, label: "전체" },
   { value: 60, label: "60점+" },
@@ -42,7 +50,7 @@ export default function SpotsClient({ allSpots }: { allSpots: WorkSpot[] }) {
   const [category, setCategory] = useState<WorkSpot["category"] | "">("");
   const [noise, setNoise] = useState("");
   const [wifi, setWifi] = useState(false);
-  const [power, setPower] = useState(false);
+  const [power, setPower] = useState("");
   const [barrierFree, setBarrierFree] = useState(false);
   const [minScore, setMinScore] = useState(0);
 
@@ -55,7 +63,7 @@ export default function SpotsClient({ allSpots }: { allSpots: WorkSpot[] }) {
       if (category && s.category !== category) return false;
       if (noise && s.noise !== noise) return false;
       if (wifi && s.wifi.available !== true) return false;
-      if (power && s.power.available !== true) return false;
+      if (power && s.power.level !== power) return false;
       if (barrierFree && s.barrierFree === undefined) return false;
       if (minScore > 0 && calcScore(s) < minScore) return false;
       return true;
@@ -69,7 +77,7 @@ export default function SpotsClient({ allSpots }: { allSpots: WorkSpot[] }) {
     setCategory("");
     setNoise("");
     setWifi(false);
-    setPower(false);
+    setPower("");
     setBarrierFree(false);
     setMinScore(0);
   };
@@ -146,11 +154,31 @@ export default function SpotsClient({ allSpots }: { allSpots: WorkSpot[] }) {
 
             <div className="w-px h-5 bg-gray-200 hidden sm:block" />
 
+            {/* 콘센트 */}
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-gray-400 whitespace-nowrap">콘센트</span>
+              {POWER_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => setPower(opt.value)}
+                  className={cn(
+                    "px-2.5 py-1.5 text-xs rounded-lg border whitespace-nowrap transition-colors",
+                    power === opt.value
+                      ? "bg-gray-900 text-white border-gray-900"
+                      : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="w-px h-5 bg-gray-200 hidden sm:block" />
+
             {/* 편의시설 토글 */}
             <div className="flex items-center gap-1.5">
               {[
                 { label: "WiFi", active: wifi, toggle: () => setWifi((v) => !v), color: "bg-blue-600 border-blue-600" },
-                { label: "콘센트", active: power, toggle: () => setPower((v) => !v), color: "bg-purple-600 border-purple-600" },
                 { label: "무장애", active: barrierFree, toggle: () => setBarrierFree((v) => !v), color: "bg-teal-600 border-teal-600" },
               ].map(({ label, active, toggle, color }) => (
                 <button
