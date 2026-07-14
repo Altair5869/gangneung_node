@@ -38,6 +38,7 @@ export default function AiCuratorPage() {
   const [workStyle, setWorkStyle] = useState(WORK_STYLES[0].value);
   const [duration, setDuration] = useState(4);
   const [preferences, setPreferences] = useState<string[]>([]);
+  const [freeText, setFreeText] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<CurationRoute | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -66,7 +67,11 @@ export default function AiCuratorPage() {
       const res = await fetch("/api/ai/curate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ curationRequest: { workStyle, duration, preferences }, spots, lifeSpots }),
+        body: JSON.stringify({
+          curationRequest: { workStyle, duration, preferences, freeText: freeText.trim() || undefined },
+          spots,
+          lifeSpots,
+        }),
       });
       if (!res.ok) throw new Error();
       const data = (await res.json()) as { route: CurationRoute };
@@ -174,6 +179,22 @@ export default function AiCuratorPage() {
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Step 4 — 자유 텍스트 */}
+          <div className="p-6 border-b border-gray-100">
+            <p className="text-xs font-bold text-sky-600 uppercase tracking-widest mb-1">Step 4</p>
+            <label className="text-base font-bold text-gray-900 block mb-4">
+              자유롭게 원하는 조건을 알려주세요
+              <span className="ml-2 text-xs font-normal text-gray-400">선택</span>
+            </label>
+            <input
+              type="text"
+              value={freeText}
+              onChange={(e) => setFreeText(e.target.value)}
+              placeholder="예: 바다 보이는 조용한 카페, 노트북 작업하기 좋은 곳"
+              className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm text-gray-900 focus:outline-none focus:border-sky-400"
+            />
           </div>
 
           {/* 제출 버튼 */}
@@ -384,7 +405,7 @@ export default function AiCuratorPage() {
 
             {/* 다시 시작 */}
             <button
-              onClick={() => { setResult(null); setPreferences([]); setSavedPlanId(null); setShowSaveForm(false); }}
+              onClick={() => { setResult(null); setPreferences([]); setFreeText(""); setSavedPlanId(null); setShowSaveForm(false); }}
               className="w-full py-3 rounded-xl text-sm font-semibold text-gray-500 border border-gray-200 hover:border-gray-400 hover:text-gray-700 transition-all"
             >
               다시 추천받기

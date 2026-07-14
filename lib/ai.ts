@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { WorkSpot, LifeSpot, RouteStop, CurationRequest, CurationRoute, isLifeSpot } from "@/types";
+import { embed, cosineSimilarity } from "@/lib/embeddings";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -28,7 +29,7 @@ const RECOMMEND_TOOL: Anthropic.Tool = {
   },
 };
 
-function preFilter(spots: WorkSpot[], request: CurationRequest): WorkSpot[] {
+function filterByPreferences(spots: WorkSpot[], request: CurationRequest): WorkSpot[] {
   let filtered = [...spots];
 
   if (request.preferences.includes("조용한 환경"))
@@ -40,12 +41,41 @@ function preFilter(spots: WorkSpot[], request: CurationRequest): WorkSpot[] {
   if (request.preferences.includes("무장애 접근 가능"))
     filtered = filtered.filter((s) => s.barrierFree !== undefined);
 
-  const base = filtered.length >= 5 ? filtered : spots;
+  return filtered.length >= 5 ? filtered : spots;
+}
 
+function buildEmbeddingText(spot: RouteStop): string {
+  return `${spot.name} ${spot.category} ${spot.tags.join(" ")} ${spot.description ?? ""}`.trim();
+}
+
+async function semanticSort<T extends RouteStop>(query: string, spots: T[]): Promise<T[]> {
+  if (spots.length === 0) return spots;
+  try {
+    const [[queryVec], docVecs] = await Promise.all([
+      embed([query], "query"),
+      embed(spots.map(buildEmbeddingText), "document"),
+    ]);
+    return spots
+      .map((spot, i) => ({ spot, score: cosineSimilarity(queryVec, docVecs[i]) }))
+      .sort((a, b) => b.score - a.score)
+      .map((x) => x.spot);
+  } catch {
+    return spots;
+  }
+}
+
+async function rankCandidates(spots: WorkSpot[], request: CurationRequest): Promise<WorkSpot[]> {
+  if (request.freeText && request.freeText.trim().length > 0) {
+    return semanticSort(request.freeText.trim(), spots);
+  }
   const order: Record<string, number> = { low: 0, medium: 1, high: 2 };
-  return base
-    .sort((a, b) => (order[a.congestion ?? "medium"] ?? 1) - (order[b.congestion ?? "medium"] ?? 1))
-    .slice(0, 30);
+  return [...spots].sort((a, b) => (order[a.congestion ?? "medium"] ?? 1) - (order[b.congestion ?? "medium"] ?? 1));
+}
+
+async function preFilter(spots: WorkSpot[], request: CurationRequest): Promise<WorkSpot[]> {
+  const filtered = filterByPreferences(spots, request);
+  const ranked = await rankCandidates(filtered, request);
+  return ranked.slice(0, 30);
 }
 
 function buildWorkSpotsContext(spots: WorkSpot[]): string {
@@ -223,7 +253,7 @@ export async function curateRoute(
   availableSpots: WorkSpot[],
   availableLifeSpots: LifeSpot[] = []
 ): Promise<CurationRoute> {
-  const workSpots = preFilter(availableSpots, request);
+  const workSpots = await preFilter(availableSpots, request);
   const lifeSpots = availableLifeSpots.slice(0, 15);
 
   let route = await generateOnce(request, workSpots, lifeSpots);
