@@ -17,12 +17,12 @@ const RECOMMEND_TOOL: Anthropic.Tool = {
       },
       description: {
         type: "string",
-        description: "추천 동선 전체 설명 (2~3문장, 한국어)",
+        description: "추천 동선 전체 설명 (2~3문장, 한국어). 사용자가 시작 시간을 알려주지 않았다면 '아침', '오전' 같은 특정 시간대를 언급하지 말 것. spotIds에 나열한 순서와 설명 속 방문 순서가 반드시 일치해야 함.",
       },
       tips: {
         type: "array",
         items: { type: "string" },
-        description: "워케이션 실용 팁 2~3개 (한국어)",
+        description: "워케이션 실용 팁 2~3개 (한국어). 실제 이동 거리나 소요 시간에 대한 구체적인 수치(예: 'OOOm 이내', '도보 O분')는 정확히 알 수 없으므로 언급하지 말 것 — wifi/콘센트/소음/무장애처럼 제공된 데이터에 있는 사실만 근거로 삼을 것.",
       },
     },
     required: ["spotIds", "description", "tips"],
@@ -103,23 +103,6 @@ export function calculateHaversineDistance(lat1: number, lng1: number, lat2: num
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-function nearestNeighborSort(spots: RouteStop[]): RouteStop[] {
-  if (spots.length <= 2) return spots;
-  const remaining = [...spots];
-  const result: RouteStop[] = [remaining.splice(0, 1)[0]];
-  while (remaining.length > 0) {
-    const cur = result[result.length - 1];
-    let nearestIdx = 0;
-    let nearestDist = Infinity;
-    remaining.forEach((s, i) => {
-      const d = calculateHaversineDistance(cur.lat, cur.lng, s.lat, s.lng);
-      if (d < nearestDist) { nearestDist = d; nearestIdx = i; }
-    });
-    result.push(remaining.splice(nearestIdx, 1)[0]);
-  }
-  return result;
-}
-
 async function generateOnce(
   request: CurationRequest,
   workSpots: WorkSpot[],
@@ -155,7 +138,7 @@ async function generateOnce(
           },
           {
             type: "text",
-            text: `업무 스타일: ${request.workStyle}\n업무 시간: ${request.duration}시간\n선호 조건: ${request.preferences.length > 0 ? request.preferences.join(", ") : "없음"}\n\n워크-라이프 동선을 구성해주세요:\n- 워크스팟 2~3곳 (집중 업무)\n- 관광지/라이프스팟 1~2곳 (업무 사이 휴식·여가)\n이동 거리를 고려해 가까운 장소끼리 배치하고, 총 3~5곳을 선택하세요.${feedbackText}`,
+            text: `업무 스타일: ${request.workStyle}\n업무 시간: ${request.duration}시간\n선호 조건: ${request.preferences.length > 0 ? request.preferences.join(", ") : "없음"}\n\n워크-라이프 동선을 구성해주세요:\n- 워크스팟 2~3곳 (집중 업무)\n- 관광지/라이프스팟 1~2곳 (업무 사이 휴식·여가)\n이동 거리를 고려해 가까운 장소끼리 배치하고, 총 3~5곳을 선택하세요.\n주의: 사용자가 시작 시간을 지정하지 않았으므로 특정 시간대(아침/오후 등)를 지어내지 마세요. 정확한 이동 거리·소요 시간 수치도 알 수 없으니 언급하지 마세요. spotIds 순서 = description에서 설명하는 방문 순서로 정확히 일치시키세요.${feedbackText}`,
           },
         ],
       },
@@ -181,7 +164,7 @@ async function generateOnce(
   if (selectedSpots.length === 0) throw new Error("추천 장소를 찾을 수 없습니다");
 
   return {
-    spots: nearestNeighborSort(selectedSpots),
+    spots: selectedSpots,
     totalDuration: request.duration,
     description: parsed.description,
     tips: parsed.tips,
@@ -248,6 +231,14 @@ function validateRoute(
 
 const MAX_ATTEMPTS = 3;
 
+// Claude는 좌표만 보고 실제 km 단위 거리를 정확히 알 수 없어 tips에 근거 없는 수치를
+// 지어낼 수 있다 (예: "500m 이내"). 프롬프트로 언급을 막는 것과 별개로, 실제 이동거리는
+// 코드로 계산한 값만 사실로 노출한다.
+function withDistanceTip(route: CurationRoute): CurationRoute {
+  const distance = totalSequentialDistance(route.spots);
+  return { ...route, tips: [...route.tips, `실제 총 이동 거리: 약 ${distance.toFixed(1)}km`] };
+}
+
 export async function curateRoute(
   request: CurationRequest,
   availableSpots: WorkSpot[],
@@ -265,10 +256,10 @@ export async function curateRoute(
   }
 
   if (!valid) {
-    return {
+    return withDistanceTip({
       ...route,
       validationNote: "일부 조건을 만족하는 동선을 찾지 못해 근접한 결과를 보여드립니다.",
-    };
+    });
   }
-  return route;
+  return withDistanceTip(route);
 }
