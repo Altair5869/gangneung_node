@@ -33,6 +33,7 @@ export interface CurationRequest {
   duration: number;
   preferences: string[];
   startLocation?: string;
+  freeText?: string;
 }
 
 export interface LifeSpot {
@@ -59,6 +60,7 @@ export interface CurationRoute {
   totalDuration: number;
   description: string;
   tips: string[];
+  validationNote?: string;
 }
 
 export interface TourismApiItem {

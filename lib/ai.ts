@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { WorkSpot, LifeSpot, RouteStop, CurationRequest, CurationRoute } from "@/types";
+import { WorkSpot, LifeSpot, RouteStop, CurationRequest, CurationRoute, isLifeSpot } from "@/types";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -90,17 +90,18 @@ function nearestNeighborSort(spots: RouteStop[]): RouteStop[] {
   return result;
 }
 
-export async function curateRoute(
+async function generateOnce(
   request: CurationRequest,
-  availableSpots: WorkSpot[],
-  availableLifeSpots: LifeSpot[] = []
+  workSpots: WorkSpot[],
+  lifeSpots: LifeSpot[],
+  retryFeedback?: string
 ): Promise<CurationRoute> {
-  const workSpots = preFilter(availableSpots, request);
-  const lifeSpots = availableLifeSpots.slice(0, 15);
-
   const workContext = buildWorkSpotsContext(workSpots);
   const lifeContext = lifeSpots.length > 0
     ? `\n\n[관광지/라이프스팟 (${lifeSpots.length}개)]\n${buildLifeSpotsContext(lifeSpots)}`
+    : "";
+  const feedbackText = retryFeedback
+    ? `\n\n[이전 추천 재검토 필요]\n${retryFeedback}\n위 문제를 피해서 다른 장소로 다시 동선을 구성해주세요.`
     : "";
 
   const response = await client.messages.create({
@@ -124,7 +125,7 @@ export async function curateRoute(
           },
           {
             type: "text",
-            text: `업무 스타일: ${request.workStyle}\n업무 시간: ${request.duration}시간\n선호 조건: ${request.preferences.length > 0 ? request.preferences.join(", ") : "없음"}\n\n워크-라이프 동선을 구성해주세요:\n- 워크스팟 2~3곳 (집중 업무)\n- 관광지/라이프스팟 1~2곳 (업무 사이 휴식·여가)\n이동 거리를 고려해 가까운 장소끼리 배치하고, 총 3~5곳을 선택하세요.`,
+            text: `업무 스타일: ${request.workStyle}\n업무 시간: ${request.duration}시간\n선호 조건: ${request.preferences.length > 0 ? request.preferences.join(", ") : "없음"}\n\n워크-라이프 동선을 구성해주세요:\n- 워크스팟 2~3곳 (집중 업무)\n- 관광지/라이프스팟 1~2곳 (업무 사이 휴식·여가)\n이동 거리를 고려해 가까운 장소끼리 배치하고, 총 3~5곳을 선택하세요.${feedbackText}`,
           },
         ],
       },
@@ -155,4 +156,89 @@ export async function curateRoute(
     description: parsed.description,
     tips: parsed.tips,
   };
+}
+
+// 2026-07-14 실측 재보정: docs/AGENT_DESIGN.md의 제안치(2h→3km 등)는 실제 강릉 후보 스팟 분포에서
+// 무제약 추천도 5.7~6.8km가 정상 범위라 절반 가까이 오탐이 발생함을 확인. 관측 범위의 ~1.5~2배로 상향.
+const DISTANCE_THRESHOLD_KM: Record<number, number> = { 2: 8, 4: 10, 6: 13, 8: 16 };
+
+function distanceThresholdFor(duration: number): number {
+  const buckets = Object.keys(DISTANCE_THRESHOLD_KM).map(Number);
+  const closest = buckets.reduce((a, b) => (Math.abs(b - duration) < Math.abs(a - duration) ? b : a));
+  return DISTANCE_THRESHOLD_KM[closest];
+}
+
+function totalSequentialDistance(spots: RouteStop[]): number {
+  let total = 0;
+  for (let i = 0; i < spots.length - 1; i++) {
+    total += calculateHaversineDistance(spots[i].lat, spots[i].lng, spots[i + 1].lat, spots[i + 1].lng);
+  }
+  return total;
+}
+
+function validateRoute(
+  route: CurationRoute,
+  request: CurationRequest
+): { valid: boolean; reasons: string[] } {
+  const reasons: string[] = [];
+  const workStops = route.spots.filter((s): s is WorkSpot => !isLifeSpot(s));
+
+  if (request.preferences.includes("콘센트 필수")) {
+    workStops.forEach((s) => {
+      if (s.power.level !== "충분함" && s.power.level !== "제한적") {
+        reasons.push(`콘센트 조건 위반: ${s.name}`);
+      }
+    });
+  }
+
+  if (request.preferences.includes("무장애 접근 가능")) {
+    workStops.forEach((s) => {
+      if (s.barrierFree === undefined) {
+        reasons.push(`무장애 조건 위반: ${s.name}`);
+      }
+    });
+  }
+
+  if (request.preferences.includes("조용한 환경")) {
+    workStops.forEach((s) => {
+      if (s.noise === "언급됨-시끄러움") {
+        reasons.push(`조용한 환경 조건 위반: ${s.name}`);
+      }
+    });
+  }
+
+  const threshold = distanceThresholdFor(request.duration);
+  const distance = totalSequentialDistance(route.spots);
+  if (distance > threshold) {
+    reasons.push(`이동 거리 초과: 총 ${distance.toFixed(1)}km (기준 ${threshold}km)`);
+  }
+
+  return { valid: reasons.length === 0, reasons };
+}
+
+const MAX_ATTEMPTS = 3;
+
+export async function curateRoute(
+  request: CurationRequest,
+  availableSpots: WorkSpot[],
+  availableLifeSpots: LifeSpot[] = []
+): Promise<CurationRoute> {
+  const workSpots = preFilter(availableSpots, request);
+  const lifeSpots = availableLifeSpots.slice(0, 15);
+
+  let route = await generateOnce(request, workSpots, lifeSpots);
+  let { valid, reasons } = validateRoute(route, request);
+
+  for (let attempt = 1; attempt < MAX_ATTEMPTS && !valid; attempt++) {
+    route = await generateOnce(request, workSpots, lifeSpots, reasons.join("; "));
+    ({ valid, reasons } = validateRoute(route, request));
+  }
+
+  if (!valid) {
+    return {
+      ...route,
+      validationNote: "일부 조건을 만족하는 동선을 찾지 못해 근접한 결과를 보여드립니다.",
+    };
+  }
+  return route;
 }

@@ -211,6 +211,13 @@ export default function AiCuratorPage() {
         {result && (
           <div className="mt-8 space-y-6">
 
+            {/* 검증 실패 경고 배너 */}
+            {result.validationNote && (
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-sm text-amber-800">
+                {result.validationNote}
+              </div>
+            )}
+
             {/* 동선 설명 카드 */}
             <div className="bg-gradient-to-br from-sky-700 via-blue-600 to-teal-600 rounded-2xl p-6 text-white shadow-xl shadow-sky-700/20">
               <p className="text-xs font-semibold text-sky-300 uppercase tracking-widest mb-3">AI 추천 워크-라이프 동선</p>
