@@ -15,7 +15,7 @@ function inferCategory(title: string): WorkSpot["category"] {
   if (t.includes("코워킹") || t.includes("공유오피스") || t.includes("스터디")) return "coworking";
   if (t.includes("도서관") || t.includes("library")) return "library";
   if (t.includes("호텔") || t.includes("리조트") || t.includes("hotel")) return "hotel";
-  return "cafe";
+  return "other";
 }
 
 export function mapTourismToWorkSpot(item: TourismApiItem): WorkSpot {

@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
 
     const bfSpots =
       barrierFreeResult.status === "fulfilled" && barrierFreeResult.value.length > 0
-        ? barrierFreeResult.value.map(mapBarrierFreeToWorkSpot)
+        ? barrierFreeResult.value.map(mapBarrierFreeToWorkSpot).filter((s) => isWorkationSpot(s.name))
         : [];
 
     const kakaoSpots =
