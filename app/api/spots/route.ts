@@ -27,6 +27,17 @@ export async function GET(request: NextRequest) {
   const wifi = searchParams.get("wifi");
   const power = searchParams.get("power");
   const barrierFree = searchParams.get("barrierFree");
+  const startHourParam = searchParams.get("startHour");
+
+  // 방문 예정 시간이 주어지면 "지금 이 순간"이 아니라 그 시간대 기준으로 혼잡도를 추정한다.
+  let plannedTime: Date | undefined;
+  if (startHourParam !== null) {
+    const hour = Number(startHourParam);
+    if (!Number.isNaN(hour) && hour >= 0 && hour <= 23) {
+      plannedTime = new Date();
+      plannedTime.setHours(hour, 0, 0, 0);
+    }
+  }
 
   let spots: WorkSpot[];
 
@@ -79,7 +90,7 @@ export async function GET(request: NextRequest) {
     const cMap = congestionMap.status === "fulfilled" ? congestionMap.value : new Map();
     const withCongestion = merged.map((s) => ({
       ...s,
-      congestion: cMap.get(s.tourismContentId ?? "") ?? estimateCongestion(s.id),
+      congestion: cMap.get(s.tourismContentId ?? "") ?? estimateCongestion(s.id, plannedTime),
     }));
 
     // 실측 데이터(24곳): wifi/power/noise를 전화 확인·방문·웹 스크리닝으로 확정한 값으로 덮어쓰고,
@@ -93,7 +104,7 @@ export async function GET(request: NextRequest) {
     const presentContentIds = new Set(overridden.map((s) => s.tourismContentId).filter(Boolean));
     const missingVerified = VERIFIED_SPOTS.filter((v) => !presentContentIds.has(v.tourismContentId)).map((v) => ({
       ...v,
-      congestion: cMap.get(v.tourismContentId ?? "") ?? estimateCongestion(v.id),
+      congestion: cMap.get(v.tourismContentId ?? "") ?? estimateCongestion(v.id, plannedTime),
     }));
 
     spots = [...overridden, ...missingVerified];

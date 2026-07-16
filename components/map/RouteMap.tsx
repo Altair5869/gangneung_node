@@ -14,7 +14,7 @@ export default function RouteMap({ stops }: { stops: RouteStop[] }) {
     let pollTimer: ReturnType<typeof setInterval>;
     let timeoutTimer: ReturnType<typeof setTimeout>;
 
-    function initMap() {
+    async function initMap() {
       if (!mapRef.current || stops.length === 0) { setStatus("ready"); return; }
       try {
         const avgLat = stops.reduce((s, p) => s + p.lat, 0) / stops.length;
@@ -22,11 +22,8 @@ export default function RouteMap({ stops }: { stops: RouteStop[] }) {
         const center = new window.kakao.maps.LatLng(avgLat, avgLng);
         const map = new window.kakao.maps.Map(mapRef.current, { center, level: 7 });
 
-        const linePath: unknown[] = [];
-
         stops.forEach((stop, i) => {
           const pos = new window.kakao.maps.LatLng(stop.lat, stop.lng);
-          linePath.push(pos);
           const color = isLifeSpot(stop) ? LIFE_COLOR : WORK_COLOR;
 
           const el = document.createElement("div");
@@ -42,6 +39,27 @@ export default function RouteMap({ stops }: { stops: RouteStop[] }) {
           });
         });
 
+        // 실제 도로 기반 경로를 시도하고, 실패하면 직선으로 대체한다.
+        let roadPoints: { lat: number; lng: number }[] = [];
+        try {
+          const res = await fetch("/api/directions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ points: stops.map((s) => ({ lat: s.lat, lng: s.lng })) }),
+          });
+          if (res.ok) {
+            const data = (await res.json()) as { path: { lat: number; lng: number }[] };
+            roadPoints = data.path ?? [];
+          }
+        } catch {
+          // 무시하고 직선 fallback 사용
+        }
+
+        const linePath =
+          roadPoints.length > 1
+            ? roadPoints.map((p) => new window.kakao.maps.LatLng(p.lat, p.lng))
+            : stops.map((s) => new window.kakao.maps.LatLng(s.lat, s.lng));
+
         if (linePath.length > 1) {
           new window.kakao.maps.Polyline({
             map,
@@ -54,7 +72,7 @@ export default function RouteMap({ stops }: { stops: RouteStop[] }) {
         }
 
         const bounds = new window.kakao.maps.LatLngBounds();
-        linePath.forEach((p) => bounds.extend(p));
+        stops.forEach((s) => bounds.extend(new window.kakao.maps.LatLng(s.lat, s.lng)));
         map.setBounds(bounds);
 
         setStatus("ready");

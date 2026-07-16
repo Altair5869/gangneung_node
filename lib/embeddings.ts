@@ -1,5 +1,5 @@
 const VOYAGE_API_URL = "https://api.voyageai.com/v1/embeddings";
-const VOYAGE_MODEL = "voyage-3.5-lite";
+const VOYAGE_MODEL = "voyage-4-lite";
 
 interface VoyageEmbeddingResponse {
   data: { embedding: number[]; index: number }[];

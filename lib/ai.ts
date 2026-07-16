@@ -10,14 +10,28 @@ const RECOMMEND_TOOL: Anthropic.Tool = {
   input_schema: {
     type: "object" as const,
     properties: {
-      spotIds: {
+      workSpotId: {
+        type: "string",
+        description: "집중 업무를 위한 워크스팟 id 정확히 1개. 업무 시간 내내 이 장소 한 곳에만 머무르고 중간에 다른 워크스팟으로 옮기지 않음. 제공된 워크스팟 목록의 id 값 그대로 사용.",
+      },
+      lifeSpotIds: {
         type: "array",
         items: { type: "string" },
-        description: "추천 장소 ID 목록 (3~5개, 워크스팟과 관광지 혼합, 제공된 목록의 id 값 그대로 사용)",
+        description: "관광지/휴식 1~2개 + 식당 정확히 1개를 합쳐 총 2~3개. 제공된 관광지/식당 목록의 id 값 그대로 사용.",
       },
-      description: {
+      order: {
+        type: "array",
+        items: { type: "string" },
+        description: "workSpotId와 lifeSpotIds에 고른 모든 id를 실제 방문 순서대로 나열 (누락 없이 전부 포함).",
+      },
+      summary: {
         type: "string",
-        description: "추천 동선 전체 설명 (2~3문장, 한국어). 사용자가 시작 시간을 알려주지 않았다면 '아침', '오전' 같은 특정 시간대를 언급하지 말 것. spotIds에 나열한 순서와 설명 속 방문 순서가 반드시 일치해야 함.",
+        description: "전체 동선을 아우르는 한 줄 소개 (한국어, 1문장). 특정 장소의 방문 순서나 시간대를 언급하지 말 것.",
+      },
+      stopNotes: {
+        type: "array",
+        items: { type: "string" },
+        description: "order 배열과 정확히 같은 개수·같은 순서로, 각 장소에서 할 일을 한 문장씩 설명 (한국어). stopNotes[0]은 반드시 order[0] 장소에 대한 설명이어야 하고, stopNotes[1]은 order[1]에 대한 설명이어야 함 — 순서를 절대 바꾸지 말 것. 사용자가 시작 시간을 알려주지 않았다면 '아침', '오전' 같은 특정 시간대를 언급하지 말 것.",
       },
       tips: {
         type: "array",
@@ -25,7 +39,7 @@ const RECOMMEND_TOOL: Anthropic.Tool = {
         description: "워케이션 실용 팁 2~3개 (한국어). 실제 이동 거리나 소요 시간에 대한 구체적인 수치(예: 'OOOm 이내', '도보 O분')는 정확히 알 수 없으므로 언급하지 말 것 — wifi/콘센트/소음/무장애처럼 제공된 데이터에 있는 사실만 근거로 삼을 것.",
       },
     },
-    required: ["spotIds", "description", "tips"],
+    required: ["workSpotId", "lifeSpotIds", "order", "summary", "stopNotes", "tips"],
   },
 };
 
@@ -72,25 +86,52 @@ async function rankCandidates(spots: WorkSpot[], request: CurationRequest): Prom
   return [...spots].sort((a, b) => (order[a.congestion ?? "medium"] ?? 1) - (order[b.congestion ?? "medium"] ?? 1));
 }
 
+// Claude에게 넘기는 워크스팟 후보를 좁게 유지해야, 이 후보들의 좌표를 기준으로 삼는
+// 관광지/식당 지오 필터링(balanceLifeSpots)도 실제로 좁은 권역을 가리키게 된다.
 async function preFilter(spots: WorkSpot[], request: CurationRequest): Promise<WorkSpot[]> {
   const filtered = filterByPreferences(spots, request);
   const ranked = await rankCandidates(filtered, request);
-  return ranked.slice(0, 30);
+  return ranked.slice(0, 12);
 }
 
 function buildWorkSpotsContext(spots: WorkSpot[]): string {
   return spots
-    .map(
-      (s) =>
-        `id:${s.id} | ${s.name} (${s.category}) | lat:${s.lat.toFixed(4)} lng:${s.lng.toFixed(4)} | 소음:${s.noise === "언급없음" ? "미확인" : s.noise} | WiFi:${s.wifi.available ? "O" : "X"} | 콘센트:${s.power.level ?? "미확인"} | 태그:[${s.tags.join(",")}]`
-    )
+    .map((s) => {
+      const desc = s.description ? ` | 설명:${s.description.slice(0, 80)}` : "";
+      return `id:${s.id} | ${s.name} (${s.category}) | lat:${s.lat.toFixed(4)} lng:${s.lng.toFixed(4)} | 소음:${s.noise === "언급없음" ? "미확인" : s.noise} | WiFi:${s.wifi.available ? "O" : "X"} | 콘센트:${s.power.level ?? "미확인"} | 태그:[${s.tags.join(",")}]${desc}`;
+    })
     .join("\n");
 }
 
+const LIFE_CATEGORY_LABEL: Record<LifeSpot["category"], string> = {
+  attraction: "관광지",
+  stay: "숙박",
+  food: "식당",
+};
+
 function buildLifeSpotsContext(spots: LifeSpot[]): string {
   return spots
-    .map((s) => `id:${s.id} | ${s.name} (관광지) | lat:${s.lat.toFixed(4)} lng:${s.lng.toFixed(4)} | 태그:[${s.tags.join(",")}]`)
+    .map((s) => `id:${s.id} | ${s.name} (${LIFE_CATEGORY_LABEL[s.category]}) | lat:${s.lat.toFixed(4)} lng:${s.lng.toFixed(4)} | 태그:[${s.tags.join(",")}]`)
     .join("\n");
+}
+
+// 관광지/식당 후보를 워크스팟 후보 목록과 무관하게 API 순서 그대로 자르면, 실제로는
+// 강릉 반대편에 있는 곳이 섞여 들어와 동선 거리가 크게 벌어질 수 있다. 워크스팟 후보들과의
+// 최단 거리를 기준으로 가까운 순서로 정렬한 뒤, 카테고리 균형(식당 확보)을 맞춰 자른다.
+function balanceLifeSpots(
+  spots: LifeSpot[],
+  workSpotRefs: { lat: number; lng: number }[],
+  limit: number
+): LifeSpot[] {
+  const distanceToNearest = (spot: LifeSpot): number =>
+    workSpotRefs.length === 0
+      ? 0
+      : Math.min(...workSpotRefs.map((ref) => calculateHaversineDistance(spot.lat, spot.lng, ref.lat, ref.lng)));
+
+  const sorted = [...spots].sort((a, b) => distanceToNearest(a) - distanceToNearest(b));
+  const food = sorted.filter((s) => s.category === "food").slice(0, Math.max(3, Math.floor(limit / 3)));
+  const rest = sorted.filter((s) => s.category !== "food").slice(0, limit - food.length);
+  return [...rest, ...food].sort((a, b) => distanceToNearest(a) - distanceToNearest(b));
 }
 
 export function calculateHaversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -116,6 +157,9 @@ async function generateOnce(
   const feedbackText = retryFeedback
     ? `\n\n[이전 추천 재검토 필요]\n${retryFeedback}\n위 문제를 피해서 다른 장소로 다시 동선을 구성해주세요.`
     : "";
+  const freeTextLine = request.freeText
+    ? `\n자유 요청사항: "${request.freeText}"\n중요: 워크스팟 후보 목록은 이 요청과의 관련도가 높은 순서로 정렬되어 있습니다. 다른 제약 조건(콘센트 등) 위반이 없는 한, 반드시 목록 상위 3~5개 안에서 workSpotId를 고르세요. 하위권 후보는 이 요청과 관련이 적으니 우선순위에서 제외하세요. 자유 요청사항과 관련된 특징(예: 바다뷰)은 후보의 '설명' 필드에 실제로 근거가 있을 때만 언급하고, 근거 없이 지어내지 마세요.`
+    : "";
 
   const response = await client.messages.create({
     model: "claude-haiku-4-5-20251001",
@@ -138,7 +182,7 @@ async function generateOnce(
           },
           {
             type: "text",
-            text: `업무 스타일: ${request.workStyle}\n업무 시간: ${request.duration}시간\n선호 조건: ${request.preferences.length > 0 ? request.preferences.join(", ") : "없음"}\n\n워크-라이프 동선을 구성해주세요:\n- 워크스팟 2~3곳 (집중 업무)\n- 관광지/라이프스팟 1~2곳 (업무 사이 휴식·여가)\n이동 거리를 고려해 가까운 장소끼리 배치하고, 총 3~5곳을 선택하세요.\n주의: 사용자가 시작 시간을 지정하지 않았으므로 특정 시간대(아침/오후 등)를 지어내지 마세요. 정확한 이동 거리·소요 시간 수치도 알 수 없으니 언급하지 마세요. spotIds 순서 = description에서 설명하는 방문 순서로 정확히 일치시키세요.${feedbackText}`,
+            text: `업무 스타일: ${request.workStyle}\n업무 시간: ${request.duration}시간\n선호 조건: ${request.preferences.length > 0 ? request.preferences.join(", ") : "없음"}${freeTextLine}\n\n워크-라이프 동선을 구성해주세요:\n- 워크스팟 정확히 1곳 (집중 업무. 업무 중간에 다른 워크스팟으로 옮기지 말고 한 곳에 머무를 것)\n- 관광지/휴식 스팟 1~2곳 (업무 사이 휴식·여가. 해변·전망 등 숨 돌릴 수 있는 곳)\n- 식당 1곳 (식사)\n이동 거리를 고려해 가까운 장소끼리 배치하세요.\n주의: 사용자가 시작 시간을 지정하지 않았으므로 특정 시간대(아침/오후 등)를 지어내지 마세요. 정확한 이동 거리·소요 시간 수치도 알 수 없으니 언급하지 마세요. stopNotes는 반드시 order와 같은 순서로 작성하세요.${feedbackText}`,
           },
         ],
       },
@@ -151,22 +195,39 @@ async function generateOnce(
   if (!toolUse || toolUse.type !== "tool_use") throw new Error("AI 응답 오류");
 
   const parsed = toolUse.input as {
-    spotIds: string[];
-    description: string;
+    workSpotId: string;
+    lifeSpotIds: string[];
+    order: string[];
+    summary: string;
+    stopNotes: string[];
     tips: string[];
   };
 
+  // stopNotes[i]는 order[i]에 대한 설명이라는 전제로 짝지어 Map에 담아 둔다 — 이후 orderedIds가
+  // 필터링/보정으로 원래 order와 달라져도, id 기준으로 찾으면 설명문이 절대 다른 장소로 안 붙는다.
+  const noteById = new Map(parsed.order.map((id, i) => [id, parsed.stopNotes[i]]));
+
+  // order가 workSpotId/lifeSpotIds에서 고른 id를 빠뜨리거나 순서만 알려주는 용도이므로,
+  // 실제 채택 여부는 workSpotId·lifeSpotIds 쪽을 기준으로 삼고 order는 정렬 기준으로만 쓴다.
+  const chosenIds = new Set([parsed.workSpotId, ...parsed.lifeSpotIds]);
+  const orderedIds = parsed.order.filter((id) => chosenIds.has(id));
+  for (const id of chosenIds) {
+    if (!orderedIds.includes(id)) orderedIds.push(id);
+  }
+
   const allSpots: RouteStop[] = [...workSpots, ...lifeSpots];
-  const selectedSpots = parsed.spotIds
+  const selectedSpots = orderedIds
     .map((id) => allSpots.find((s) => s.id === id))
     .filter((s): s is RouteStop => s !== undefined);
 
   if (selectedSpots.length === 0) throw new Error("추천 장소를 찾을 수 없습니다");
 
+  const description = [parsed.summary, ...orderedIds.map((id) => noteById.get(id)).filter(Boolean)].join(" ");
+
   return {
     spots: selectedSpots,
     totalDuration: request.duration,
-    description: parsed.description,
+    description,
     tips: parsed.tips,
   };
 }
@@ -195,6 +256,15 @@ function validateRoute(
 ): { valid: boolean; reasons: string[] } {
   const reasons: string[] = [];
   const workStops = route.spots.filter((s): s is WorkSpot => !isLifeSpot(s));
+
+  if (workStops.length !== 1) {
+    reasons.push(`워크스팟은 정확히 1곳이어야 합니다: 현재 ${workStops.length}곳`);
+  }
+
+  const hasFood = route.spots.some((s) => isLifeSpot(s) && s.category === "food");
+  if (!hasFood) {
+    reasons.push("식당이 동선에 포함되지 않았습니다");
+  }
 
   if (request.preferences.includes("콘센트 필수")) {
     workStops.forEach((s) => {
@@ -239,13 +309,42 @@ function withDistanceTip(route: CurationRoute): CurationRoute {
   return { ...route, tips: [...route.tips, `실제 총 이동 거리: 약 ${distance.toFixed(1)}km`] };
 }
 
+function formatClock(totalMinutes: number): string {
+  const h = Math.floor(totalMinutes / 60) % 24;
+  const m = totalMinutes % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+// 같은 이유로(수치 환각 방지), 시작 시간이 주어졌을 때의 예상 일정도 Claude가 아니라
+// 코드가 계산한다. 워크스팟은 요청한 업무 시간만큼, 식당은 1시간, 관광지/휴식은 45분으로 고정 배분.
+function buildSchedule(spots: RouteStop[], request: CurationRequest, startHour: number): string[] {
+  let cursor = startHour * 60;
+  return spots.map((spot) => {
+    const blockMin = isLifeSpot(spot) ? (spot.category === "food" ? 60 : 45) : request.duration * 60;
+    const start = formatClock(cursor);
+    cursor += blockMin;
+    const end = formatClock(cursor);
+    const label = isLifeSpot(spot) ? spot.name : `${spot.name} (업무)`;
+    return `${start}~${end} ${label}`;
+  });
+}
+
+function finalizeRoute(route: CurationRoute, request: CurationRequest): CurationRoute {
+  const withDistance = withDistanceTip(route);
+  if (request.startHour === undefined) return withDistance;
+  return { ...withDistance, schedule: buildSchedule(withDistance.spots, request, request.startHour) };
+}
+
 export async function curateRoute(
   request: CurationRequest,
   availableSpots: WorkSpot[],
   availableLifeSpots: LifeSpot[] = []
 ): Promise<CurationRoute> {
-  const workSpots = await preFilter(availableSpots, request);
-  const lifeSpots = availableLifeSpots.slice(0, 15);
+  // 숙소는 사용자가 이미 머무는 곳이지 "일하러 이동할 목적지"가 아니므로 워케이션 동선에서는 제외한다.
+  // 숙박 자체 추천은 /stay 페이지에서 별도로 다룬다.
+  const nonStaySpots = availableSpots.filter((s) => s.category !== "hotel");
+  const workSpots = await preFilter(nonStaySpots, request);
+  const lifeSpots = balanceLifeSpots(availableLifeSpots, workSpots, 15);
 
   let route = await generateOnce(request, workSpots, lifeSpots);
   let { valid, reasons } = validateRoute(route, request);
@@ -256,10 +355,10 @@ export async function curateRoute(
   }
 
   if (!valid) {
-    return withDistanceTip({
-      ...route,
-      validationNote: "일부 조건을 만족하는 동선을 찾지 못해 근접한 결과를 보여드립니다.",
-    });
+    return finalizeRoute(
+      { ...route, validationNote: "일부 조건을 만족하는 동선을 찾지 못해 근접한 결과를 보여드립니다." },
+      request
+    );
   }
-  return withDistanceTip(route);
+  return finalizeRoute(route, request);
 }

@@ -27,9 +27,16 @@ const PREFERENCE_OPTIONS = [
 
 const DURATION_OPTIONS = [2, 4, 6, 8];
 
+const START_TIME_OPTIONS: { value: number | undefined; label: string }[] = [
+  { value: undefined, label: "선택 안 함" },
+  { value: 9, label: "오전 9시" },
+  { value: 13, label: "오후 1시" },
+  { value: 18, label: "오후 6시" },
+];
+
 const categoryLabel: Record<string, string> = {
   cafe: "카페", coworking: "코워킹", library: "도서관",
-  hotel: "호텔", other: "기타", attraction: "관광지",
+  hotel: "호텔", other: "기타", attraction: "관광지", food: "식당",
 };
 
 const congestionDot: Record<string, string> = {
@@ -39,6 +46,7 @@ const congestionDot: Record<string, string> = {
 export default function AiCuratorPage() {
   const [workStyle, setWorkStyle] = useState(WORK_STYLES[0].value);
   const [duration, setDuration] = useState(4);
+  const [startHour, setStartHour] = useState<number | undefined>(undefined);
   const [preferences, setPreferences] = useState<string[]>([]);
   const [freeText, setFreeText] = useState("");
   const [loading, setLoading] = useState(false);
@@ -59,18 +67,22 @@ export default function AiCuratorPage() {
     setError(null);
     setResult(null);
     try {
-      const [spotsRes, lifeSpotsRes] = await Promise.all([
-        fetch("/api/spots"),
+      const spotsUrl = startHour !== undefined ? `/api/spots?startHour=${startHour}` : "/api/spots";
+      const [spotsRes, lifeSpotsRes, foodSpotsRes] = await Promise.all([
+        fetch(spotsUrl),
         fetch("/api/life-spots"),
+        fetch("/api/food-spots"),
       ]);
       const { spots } = (await spotsRes.json()) as { spots: WorkSpot[] };
-      const { spots: lifeSpots } = (await lifeSpotsRes.json()) as { spots: LifeSpot[] };
+      const { spots: attractionSpots } = (await lifeSpotsRes.json()) as { spots: LifeSpot[] };
+      const { spots: foodSpots } = (await foodSpotsRes.json()) as { spots: LifeSpot[] };
+      const lifeSpots = [...attractionSpots, ...foodSpots];
 
       const res = await fetch("/api/ai/curate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          curationRequest: { workStyle, duration, preferences, freeText: freeText.trim() || undefined },
+          curationRequest: { workStyle, duration, preferences, freeText: freeText.trim() || undefined, startHour },
           spots,
           lifeSpots,
         }),
@@ -153,6 +165,27 @@ export default function AiCuratorPage() {
                   )}
                 >
                   {h}시간
+                </button>
+              ))}
+            </div>
+
+            <label className="text-sm font-semibold text-gray-700 block mt-5 mb-3">
+              시작 시간
+              <span className="ml-2 text-xs font-normal text-gray-400">선택 — 혼잡도 예측과 예상 일정표에 반영됩니다</span>
+            </label>
+            <div className="flex gap-2">
+              {START_TIME_OPTIONS.map((opt) => (
+                <button
+                  key={opt.label}
+                  onClick={() => setStartHour(opt.value)}
+                  className={cn(
+                    "flex-1 py-2.5 rounded-xl text-xs font-bold border transition-all",
+                    startHour === opt.value
+                      ? "bg-teal-600 text-white border-teal-600 shadow-sm"
+                      : "bg-gray-50 text-gray-600 border-gray-100 hover:border-teal-300 hover:bg-teal-50"
+                  )}
+                >
+                  {opt.label}
                 </button>
               ))}
             </div>
@@ -250,6 +283,21 @@ export default function AiCuratorPage() {
                 <span className="text-sm font-bold text-white">{result.totalDuration}시간</span>
               </div>
             </div>
+
+            {/* 예상 일정표 */}
+            {result.schedule && result.schedule.length > 0 && (
+              <div className="bg-white border border-gray-200 rounded-2xl p-5">
+                <h2 className="text-sm font-bold text-gray-900 mb-3">예상 일정표</h2>
+                <ul className="space-y-2">
+                  {result.schedule.map((line, i) => (
+                    <li key={i} className="flex items-center gap-3 text-sm text-gray-700">
+                      <span className="w-1.5 h-1.5 rounded-full bg-teal-500 flex-shrink-0" />
+                      {line}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {/* 인라인 지도 */}
             <RouteMap stops={result.spots} />
@@ -407,7 +455,7 @@ export default function AiCuratorPage() {
 
             {/* 다시 시작 */}
             <button
-              onClick={() => { setResult(null); setPreferences([]); setFreeText(""); setSavedPlanId(null); setShowSaveForm(false); }}
+              onClick={() => { setResult(null); setPreferences([]); setFreeText(""); setStartHour(undefined); setSavedPlanId(null); setShowSaveForm(false); }}
               className="w-full py-3 rounded-xl text-sm font-semibold text-gray-500 border border-gray-200 hover:border-gray-400 hover:text-gray-700 transition-all"
             >
               다시 추천받기
