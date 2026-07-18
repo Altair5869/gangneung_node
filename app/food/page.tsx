@@ -15,7 +15,9 @@ export default async function FoodPage() {
     spots = items
       .filter((item) => item.mapx && item.mapy && parseFloat(item.mapx) !== 0)
       .map(mapTourismToFoodSpot);
-  } catch {}
+  } catch (err) {
+    console.error("[FoodPage] getFoodList failed:", err);
+  }
 
   return (
     <div className="flex flex-col min-h-screen">

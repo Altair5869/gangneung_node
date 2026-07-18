@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { WorkSpot, LifeSpot, CurationRoute, isLifeSpot } from "@/types";
-import { cn, congestionLabel } from "@/lib/utils";
+import { cn, congestionLabel, isBarrierFree } from "@/lib/utils";
 import RouteMap from "@/components/map/RouteMap";
 import { savePlan } from "@/lib/planner-storage";
 
@@ -19,7 +19,6 @@ const WORK_STYLES = [
 // 무장애 접근성도 확인되면 다시 추가한다. 검증 로직(lib/ai.ts)은 남겨둠.
 const PREFERENCE_OPTIONS = [
   { value: "조용한 환경", label: "조용함" },
-  { value: "빠른 WiFi", label: "빠른 WiFi" },
   { value: "콘센트 필수", label: "콘센트" },
   { value: "뷰 좋은 곳", label: "뷰 맛집" },
   { value: "카페인 충전 가능", label: "커피" },
@@ -352,7 +351,7 @@ export default function AiCuratorPage() {
                                   WiFi
                                 </span>
                               )}
-                              {(spot as WorkSpot).barrierFree !== undefined && (
+                              {isBarrierFree((spot as WorkSpot).barrierFree) && (
                                 <span className="text-xs px-2 py-0.5 rounded-full bg-teal-100 text-teal-700 font-medium">
                                   무장애
                                 </span>

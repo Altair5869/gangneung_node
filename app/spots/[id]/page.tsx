@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { noiseLabel, congestionLabel, cn } from "@/lib/utils";
+import { noiseLabel, congestionLabel, cn, isBarrierFree } from "@/lib/utils";
 import WorkEnvScore from "@/components/spots/WorkEnvScore";
 import { WorkSpot } from "@/types";
 
@@ -77,7 +77,7 @@ export default async function SpotDetailPage({
           <span className="bg-white/90 backdrop-blur-sm text-xs font-semibold px-3 py-1 rounded-full text-gray-700 shadow-sm">
             {categoryLabel[spot.category]}
           </span>
-          {spot.barrierFree !== undefined && (
+          {isBarrierFree(spot.barrierFree) && (
             <span className="bg-teal-600 text-xs font-semibold px-3 py-1 rounded-full text-white shadow-sm">
               무장애
             </span>

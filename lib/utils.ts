@@ -20,6 +20,12 @@ export function congestionLabel(level?: "low" | "medium" | "high") {
   return { low: "여유", medium: "보통", high: "혼잡" }[level];
 }
 
+// barrierFree 필드가 존재한다고 해서 무장애인 건 아니다 (wheelchair: false인 채로도 객체는 존재할 수 있음).
+// 실제 휠체어 접근 가능 여부(wheelchair === true)만 "무장애"로 간주한다.
+export function isBarrierFree(barrierFree?: { wheelchair?: boolean }) {
+  return barrierFree?.wheelchair === true;
+}
+
 // 시간대·요일 기반 예상 혼잡도 (장소 ID로 분산 적용)
 export function estimateCongestion(spotId: string, now = new Date()): "low" | "medium" | "high" {
   const hour = now.getHours();

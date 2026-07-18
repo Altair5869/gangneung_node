@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { WorkSpot, LifeSpot, RouteStop, CurationRequest, CurationRoute, isLifeSpot } from "@/types";
 import { embed, cosineSimilarity } from "@/lib/embeddings";
+import { isBarrierFree } from "@/lib/utils";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -48,12 +49,10 @@ function filterByPreferences(spots: WorkSpot[], request: CurationRequest): WorkS
 
   if (request.preferences.includes("조용한 환경"))
     filtered = filtered.filter((s) => s.noise === "언급됨-조용함");
-  if (request.preferences.includes("빠른 WiFi"))
-    filtered = filtered.filter((s) => s.wifi.available);
   if (request.preferences.includes("콘센트 필수"))
     filtered = filtered.filter((s) => s.power.level === "충분함" || s.power.level === "제한적");
   if (request.preferences.includes("무장애 접근 가능"))
-    filtered = filtered.filter((s) => s.barrierFree !== undefined);
+    filtered = filtered.filter((s) => isBarrierFree(s.barrierFree));
 
   return filtered.length >= 5 ? filtered : spots;
 }
@@ -276,7 +275,7 @@ function validateRoute(
 
   if (request.preferences.includes("무장애 접근 가능")) {
     workStops.forEach((s) => {
-      if (s.barrierFree === undefined) {
+      if (!isBarrierFree(s.barrierFree)) {
         reasons.push(`무장애 조건 위반: ${s.name}`);
       }
     });

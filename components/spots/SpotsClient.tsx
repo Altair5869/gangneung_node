@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { WorkSpot } from "@/types";
-import { cn } from "@/lib/utils";
+import { cn, isBarrierFree } from "@/lib/utils";
 import SpotCard from "@/components/spots/SpotCard";
 
 function calcScore(spot: WorkSpot): number {
@@ -64,7 +64,7 @@ export default function SpotsClient({ allSpots }: { allSpots: WorkSpot[] }) {
       if (noise && s.noise !== noise) return false;
       if (wifi && s.wifi.available !== true) return false;
       if (power && s.power.level !== power) return false;
-      if (barrierFree && s.barrierFree === undefined) return false;
+      if (barrierFree && !isBarrierFree(s.barrierFree)) return false;
       if (minScore > 0 && calcScore(s) < minScore) return false;
       return true;
     });

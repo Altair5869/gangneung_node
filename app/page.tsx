@@ -49,7 +49,7 @@ export default function HomePage() {
       <section className="bg-white border-b border-gray-100 py-10">
         <div className="max-w-4xl mx-auto px-4 grid grid-cols-2 sm:grid-cols-4 gap-6 text-center">
           <div>
-            <p className="text-4xl font-bold text-gray-900">266<span className="text-teal-500">+</span></p>
+            <p className="text-4xl font-bold text-gray-900">230<span className="text-teal-500">+</span></p>
             <p className="text-sm text-gray-500 mt-1">강릉 워크스팟</p>
           </div>
           <div>
@@ -57,8 +57,8 @@ export default function HomePage() {
             <p className="text-sm text-gray-500 mt-1">관광공사 API 활용</p>
           </div>
           <div>
-            <p className="text-4xl font-bold text-gray-900">50<span className="text-emerald-500">+</span></p>
-            <p className="text-sm text-gray-500 mt-1">무장애 스팟</p>
+            <p className="text-4xl font-bold text-gray-900">24<span className="text-emerald-500">곳</span></p>
+            <p className="text-sm text-gray-500 mt-1">실측 검증 완료</p>
           </div>
           <div>
             <p className="text-4xl font-bold text-gray-900 text-sky-600">AI</p>
@@ -76,9 +76,9 @@ export default function HomePage() {
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
             {[
-              { step: "01", title: "일하기", desc: "카페·코워킹·도서관 266곳", href: "/spots", color: "sky" },
+              { step: "01", title: "일하기", desc: "카페·코워킹·도서관 230+곳", href: "/spots", color: "sky" },
               { step: "02", title: "먹기", desc: "강릉 현지 맛집 30곳", href: "/food", color: "orange" },
-              { step: "03", title: "즐기기", desc: "관광지·무장애 스팟", href: "/map", color: "teal" },
+              { step: "03", title: "즐기기", desc: "관광지·전망 명소", href: "/map", color: "teal" },
               { step: "04", title: "축제", desc: "강릉 지역 행사·축제", href: "/events", color: "rose" },
               { step: "05", title: "자기", desc: "호텔·펜션·게스트하우스", href: "/stay", color: "indigo" },
             ].map((item) => (
@@ -110,7 +110,7 @@ export default function HomePage() {
               강릉 워케이션, 이렇게 달라집니다
             </h2>
             <p className="text-gray-500 max-w-lg mx-auto">
-              한국관광공사 공식 OpenAPI 기반 검증 데이터 · AI 동선 최적화 · 무장애 접근성 정보
+              한국관광공사 공식 OpenAPI 데이터 · AI 동선 최적화 · 전화·방문으로 실측 검증한 워크스팟 정보
             </p>
           </div>
 
@@ -132,12 +132,12 @@ export default function HomePage() {
               cta="동선 만들기"
             />
             <FeatureCard
-              tag="무장애"
-              title="모두를 위한 워케이션 정보"
-              description="휠체어 접근, 엘리베이터, 장애인 화장실 등 무장애 편의시설 정보를 제공합니다."
+              tag="데이터 신뢰성"
+              title="전화 확인·방문으로 검증한 정보만"
+              description="24곳은 전화 확인과 방문으로 WiFi·콘센트·소음을 직접 검증했습니다. 확인되지 않은 정보는 추정하지 않고 '미확인'으로 표시합니다."
               color="emerald"
-              href="/spots?barrierFree=true"
-              cta="무장애 스팟 보기"
+              href="/spots"
+              cta="검증된 스팟 보기"
             />
             <FeatureCard
               tag="숙박"
@@ -190,7 +190,7 @@ export default function HomePage() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-2xl mx-auto">
             {[
               { value: "2시간", label: "서울 → KTX" },
-              { value: "266+", label: "워크스팟" },
+              { value: "230+", label: "워크스팟" },
               { value: "기가", label: "인터넷 인프라" },
               { value: "365일", label: "워케이션 가능" },
             ].map((item) => (

@@ -3,7 +3,7 @@ import { MOCK_SPOTS } from "@/lib/spots-data";
 import { getAreaBasedList, getBarrierFreeList, getCongestionMap } from "@/lib/tourism-api";
 import { mapTourismToWorkSpot, mapBarrierFreeToWorkSpot } from "@/lib/tourism-mapper";
 import { getKakaoCafes } from "@/lib/kakao-local-api";
-import { estimateCongestion } from "@/lib/utils";
+import { estimateCongestion, isBarrierFree } from "@/lib/utils";
 import { VERIFIED_SPOTS } from "@/lib/verified-spots";
 import { WorkSpot } from "@/types";
 
@@ -115,7 +115,7 @@ export async function GET(request: NextRequest) {
   if (noise) spots = spots.filter((s) => s.noise === noise);
   if (wifi === "true") spots = spots.filter((s) => s.wifi.available);
   if (power === "true") spots = spots.filter((s) => s.power.level === "충분함" || s.power.level === "제한적");
-  if (barrierFree === "true") spots = spots.filter((s) => s.barrierFree !== undefined);
+  if (barrierFree === "true") spots = spots.filter((s) => isBarrierFree(s.barrierFree));
 
   return NextResponse.json({ spots });
 }

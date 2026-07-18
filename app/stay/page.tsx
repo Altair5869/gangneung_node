@@ -15,7 +15,9 @@ export default async function StayPage() {
     spots = items
       .filter((item) => item.mapx && item.mapy && parseFloat(item.mapx) !== 0)
       .map(mapTourismToStaySpot);
-  } catch {}
+  } catch (err) {
+    console.error("[StayPage] getStayList failed:", err);
+  }
 
   return (
     <div className="flex flex-col min-h-screen">

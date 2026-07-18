@@ -40,7 +40,9 @@ export default async function EventsPage() {
   try {
     const items = await getEventList();
     events = (items as EventApiItem[]).map(mapTourismToEventSpot);
-  } catch {}
+  } catch (err) {
+    console.error("[EventsPage] getEventList failed:", err);
+  }
 
   const ongoing = events.filter((e) => getStatus(e.startDate, e.endDate) === "ongoing");
   const upcoming = events.filter((e) => getStatus(e.startDate, e.endDate) === "upcoming");

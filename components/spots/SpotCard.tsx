@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { WorkSpot } from "@/types";
-import { cn, noiseLabel, congestionLabel, powerLabel } from "@/lib/utils";
+import { cn, noiseLabel, congestionLabel, powerLabel, isBarrierFree } from "@/lib/utils";
 
 const categoryLabel: Record<WorkSpot["category"], string> = {
   cafe: "카페",
@@ -108,7 +108,7 @@ export default function SpotCard({ spot }: { spot: WorkSpot }) {
                 콘센트 미확인
               </span>
             )}
-            {spot.barrierFree !== undefined && (
+            {isBarrierFree(spot.barrierFree) && (
               <span className="text-xs px-2 py-0.5 rounded-full bg-teal-100 text-teal-700 font-medium">
                 무장애
               </span>
