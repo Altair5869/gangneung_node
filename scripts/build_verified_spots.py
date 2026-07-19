@@ -33,6 +33,27 @@ POWER_MAP = {
     "없음": "없음",
 }
 
+BARRIER_FIELDS = ["wheelchair", "exit", "elevator", "restroom", "parking"]
+
+
+def parse_barrier_field(val: str) -> bool:
+    val = (val or "").strip()
+    return val not in ("", "0", "없음", "불가")
+
+
+def load_barrierfree_index(data_dir: Path) -> dict:
+    path = data_dir / "barrierfree_raw.csv"
+    index = {}
+    if not path.exists():
+        return index
+    with path.open(encoding="utf-8-sig") as f:
+        for row in csv.DictReader(f):
+            cid = row.get("contentid", "").strip()
+            if not cid or row.get("has_data", "").strip() != "True":
+                continue
+            index[cid] = {field: parse_barrier_field(row.get(field, "")) for field in BARRIER_FIELDS}
+    return index
+
 
 def infer_category(title: str) -> str:
     t = title.lower()
@@ -66,7 +87,7 @@ def load_latlng_index(data_dir: Path) -> dict:
     return index
 
 
-def build_spot(row: dict, latlng_index: dict) -> dict:
+def build_spot(row: dict, latlng_index: dict, barrierfree_index: dict) -> dict:
     cid = row["contentid"].strip()
     title = row["title"].strip()
     category = infer_category(title)
@@ -91,7 +112,7 @@ def build_spot(row: dict, latlng_index: dict) -> dict:
     is_library_source = cid.startswith("kakao-")
     spot_id = f"verified-{cid}" if is_library_source else f"tourism-{cid}"
 
-    return {
+    spot = {
         "id": spot_id,
         "name": title,
         "category": category,
@@ -107,6 +128,12 @@ def build_spot(row: dict, latlng_index: dict) -> dict:
         "description": row.get("overview", "").strip() or None,
     }
 
+    barrier_free = barrierfree_index.get(cid)
+    if barrier_free is not None:
+        spot["barrierFree"] = barrier_free
+
+    return spot
+
 
 def main():
     parser = argparse.ArgumentParser(description="실측 완료 24곳을 WorkSpot JSON으로 빌드")
@@ -116,6 +143,7 @@ def main():
 
     data_dir = Path(args.data_dir)
     latlng_index = load_latlng_index(data_dir)
+    barrierfree_index = load_barrierfree_index(data_dir)
 
     rows = []
     with (data_dir / "spots_enriched.csv").open(encoding="utf-8-sig") as f:
@@ -123,7 +151,7 @@ def main():
     with (data_dir / "selected_library.csv").open(encoding="utf-8-sig") as f:
         rows.extend(csv.DictReader(f))
 
-    spots = [s for s in (build_spot(r, latlng_index) for r in rows) if s is not None]
+    spots = [s for s in (build_spot(r, latlng_index, barrierfree_index) for r in rows) if s is not None]
 
     out_path = Path(args.out)
     out_path.write_text(json.dumps(spots, ensure_ascii=False, indent=2), encoding="utf-8")

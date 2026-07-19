@@ -21,9 +21,10 @@ export function congestionLabel(level?: "low" | "medium" | "high") {
 }
 
 // barrierFree 필드가 존재한다고 해서 무장애인 건 아니다 (wheelchair: false인 채로도 객체는 존재할 수 있음).
-// 실제 휠체어 접근 가능 여부(wheelchair === true)만 "무장애"로 간주한다.
-export function isBarrierFree(barrierFree?: { wheelchair?: boolean }) {
-  return barrierFree?.wheelchair === true;
+// 관광공사 무장애 API의 wheelchair 필드는 "휠체어 대여 서비스" 여부라 실제로는 거의 항상 비어있다.
+// 출입구 단차/자동문/경사로 등 실제 접근성 정보는 exit 필드에 들어있으므로 이걸 기준으로 판단한다.
+export function isBarrierFree(barrierFree?: { exit?: boolean }) {
+  return barrierFree?.exit === true;
 }
 
 // 관광공사 API는 카페/베이커리도 "음식점"(contentTypeId 39) 하나로 묶어서 준다.

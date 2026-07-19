@@ -99,7 +99,14 @@ export async function GET(request: NextRequest) {
     const overridden = withCongestion.map((s) => {
       const v = s.tourismContentId ? verifiedById.get(s.tourismContentId) : undefined;
       if (!v) return s;
-      return { ...s, wifi: v.wifi, power: v.power, noise: v.noise, tags: Array.from(new Set([...s.tags, ...v.tags])) };
+      return {
+        ...s,
+        wifi: v.wifi,
+        power: v.power,
+        noise: v.noise,
+        barrierFree: v.barrierFree ?? s.barrierFree,
+        tags: Array.from(new Set([...s.tags, ...v.tags])),
+      };
     });
     const presentContentIds = new Set(overridden.map((s) => s.tourismContentId).filter(Boolean));
     const missingVerified = VERIFIED_SPOTS.filter((v) => !presentContentIds.has(v.tourismContentId)).map((v) => ({
