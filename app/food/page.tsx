@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getFoodList } from "@/lib/tourism-api";
 import { mapTourismToFoodSpot } from "@/lib/tourism-mapper";
+import { looksLikeCafe } from "@/lib/utils";
 import { LifeSpot } from "@/types";
 
 export const metadata = {
@@ -14,6 +15,7 @@ export default async function FoodPage() {
     const items = await getFoodList();
     spots = items
       .filter((item) => item.mapx && item.mapy && parseFloat(item.mapx) !== 0)
+      .filter((item) => !looksLikeCafe(item.title))
       .map(mapTourismToFoodSpot);
   } catch (err) {
     console.error("[FoodPage] getFoodList failed:", err);

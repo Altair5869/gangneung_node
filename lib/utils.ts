@@ -26,6 +26,15 @@ export function isBarrierFree(barrierFree?: { wheelchair?: boolean }) {
   return barrierFree?.wheelchair === true;
 }
 
+// 관광공사 API는 카페/베이커리도 "음식점"(contentTypeId 39) 하나로 묶어서 준다.
+// 같은 곳이 워크스팟(카페)과 식당 목록 양쪽에 동일 contentId로 중복 노출되는 걸 막기 위해 사용.
+const CAFE_KEYWORDS = ["카페", "커피", "coffee", "cafe", "베이커리", "브루어리", "빵집", "제과"];
+
+export function looksLikeCafe(name: string): boolean {
+  const lower = name.toLowerCase();
+  return CAFE_KEYWORDS.some((kw) => lower.includes(kw));
+}
+
 // 시간대·요일 기반 예상 혼잡도 (장소 ID로 분산 적용)
 export function estimateCongestion(spotId: string, now = new Date()): "low" | "medium" | "high" {
   const hour = now.getHours();
