@@ -13,7 +13,8 @@
 
 - Frontend: Next.js (App Router), TypeScript, Tailwind CSS
 - 현재 AI: Claude API (`claude-haiku-4-5-20251001`), `lib/ai.ts`의 `curateRoute` 함수
-- 도입 예정: Python + FastAPI (AI 마이크로서비스), LangChain, LangGraph, Chroma 또는 pgvector
+- Node1(생성)→Node2(코드 검증)→재시도 루프는 `@langchain/langgraph`의 `StateGraph`로 구현됨 (2026-07-20). 자유 텍스트 큐레이션은 Upstash Vector(`lib/vector-store.ts`)에 사전 색인된 임베딩으로 검색하고, 미설정/실패 시 실시간 재임베딩으로 폴백함. 자세한 내용은 `docs/AGENT_DESIGN.md` 참고
+- Python+FastAPI 마이크로서비스 분리, LangChain, Chroma/pgvector는 도입하지 않기로 결정함 (Next.js 단일 배포 유지가 공모전 마감 리스크 대비 더 합리적이라 판단)
 
 **주의**: `Gangneung_Node_Plan.md`에는 "LLM (OpenAI/Gemini) 연동"이라고 적혀 있으나 실제 구현은 Claude API다. 기획서 제출 전 이 불일치를 수정해야 한다.
 

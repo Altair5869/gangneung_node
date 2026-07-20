@@ -1,6 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { StateGraph, Annotation, START, END } from "@langchain/langgraph";
 import { WorkSpot, LifeSpot, RouteStop, CurationRequest, CurationRoute, isLifeSpot } from "@/types";
 import { embed, cosineSimilarity } from "@/lib/embeddings";
+import { queryTopK } from "@/lib/vector-store";
 import { isBarrierFree } from "@/lib/utils";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -77,9 +79,21 @@ async function semanticSort<T extends RouteStop>(query: string, spots: T[]): Pro
   }
 }
 
+// 자유 텍스트가 있으면 먼저 사전 색인된 Upstash Vector에서 쿼리 1건만 임베딩해 유사도 검색을
+// 시도한다 (문서 재임베딩 없음). 색인이 없거나(미설정) 실패하면 기존처럼 후보 전체를 그 자리에서
+// 재임베딩하는 semanticSort로 폴백한다 — 매 요청 문서 재임베딩을 없애는 게 이 경로의 목적이다.
 async function rankCandidates(spots: WorkSpot[], request: CurationRequest): Promise<WorkSpot[]> {
-  if (request.freeText && request.freeText.trim().length > 0) {
-    return semanticSort(request.freeText.trim(), spots);
+  const freeText = request.freeText?.trim();
+  if (freeText) {
+    const vectorIds = await queryTopK(freeText, Math.max(spots.length, 30));
+    if (vectorIds) {
+      const byId = new Map(spots.map((s) => [s.id, s]));
+      const ranked = vectorIds.map((id) => byId.get(id)).filter((s): s is WorkSpot => s !== undefined);
+      const rankedIds = new Set(ranked.map((s) => s.id));
+      const rest = spots.filter((s) => !rankedIds.has(s.id));
+      return [...ranked, ...rest];
+    }
+    return semanticSort(freeText, spots);
   }
   const order: Record<string, number> = { low: 0, medium: 1, high: 2 };
   return [...spots].sort((a, b) => (order[a.congestion ?? "medium"] ?? 1) - (order[b.congestion ?? "medium"] ?? 1));
@@ -334,6 +348,44 @@ function finalizeRoute(route: CurationRoute, request: CurationRequest): Curation
   return { ...withDistance, schedule: buildSchedule(withDistance.spots, request, request.startHour) };
 }
 
+// Node1(생성)→Node2(코드 기반 검증)→불합격 시 사유를 프롬프트에 실어 재시도(최대 MAX_ATTEMPTS회)
+// 구조를 LangGraph StateGraph로 명시화한다. self-critique(LLM에게 "이거 괜찮아?" 재질문)가 아니라
+// 불리언/숫자 비교로 검증하는 것은 기존과 동일 — docs/AGENT_DESIGN.md에 설계만 있던 것을 실제로 구현.
+const CurationState = Annotation.Root({
+  request: Annotation<CurationRequest>(),
+  workSpots: Annotation<WorkSpot[]>(),
+  lifeSpots: Annotation<LifeSpot[]>(),
+  route: Annotation<CurationRoute | null>(),
+  valid: Annotation<boolean>(),
+  reasons: Annotation<string[]>(),
+  attempt: Annotation<number>(),
+});
+
+async function generateNode(state: typeof CurationState.State) {
+  const feedback = state.reasons.length > 0 ? state.reasons.join("; ") : undefined;
+  const route = await generateOnce(state.request, state.workSpots, state.lifeSpots, feedback);
+  return { route, attempt: state.attempt + 1 };
+}
+
+function validateNode(state: typeof CurationState.State) {
+  const { valid, reasons } = validateRoute(state.route as CurationRoute, state.request);
+  return { valid, reasons };
+}
+
+function routeAfterValidate(state: typeof CurationState.State): "retry" | "end" {
+  if (state.valid) return "end";
+  if (state.attempt >= MAX_ATTEMPTS) return "end";
+  return "retry";
+}
+
+const curationGraph = new StateGraph(CurationState)
+  .addNode("generate", generateNode)
+  .addNode("validate", validateNode)
+  .addEdge(START, "generate")
+  .addEdge("generate", "validate")
+  .addConditionalEdges("validate", routeAfterValidate, { retry: "generate", end: END })
+  .compile();
+
 export async function curateRoute(
   request: CurationRequest,
   availableSpots: WorkSpot[],
@@ -345,15 +397,18 @@ export async function curateRoute(
   const workSpots = await preFilter(nonStaySpots, request);
   const lifeSpots = balanceLifeSpots(availableLifeSpots, workSpots, 15);
 
-  let route = await generateOnce(request, workSpots, lifeSpots);
-  let { valid, reasons } = validateRoute(route, request);
+  const result = await curationGraph.invoke({
+    request,
+    workSpots,
+    lifeSpots,
+    route: null,
+    valid: false,
+    reasons: [],
+    attempt: 0,
+  });
 
-  for (let attempt = 1; attempt < MAX_ATTEMPTS && !valid; attempt++) {
-    route = await generateOnce(request, workSpots, lifeSpots, reasons.join("; "));
-    ({ valid, reasons } = validateRoute(route, request));
-  }
-
-  if (!valid) {
+  const route = result.route as CurationRoute;
+  if (!result.valid) {
     return finalizeRoute(
       { ...route, validationNote: "일부 조건을 만족하는 동선을 찾지 못해 근접한 결과를 보여드립니다." },
       request

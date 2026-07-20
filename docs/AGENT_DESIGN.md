@@ -89,3 +89,25 @@
 ## Node 1/2 구현 상태 (2026-07-14 갱신)
 
 "노드 구조"·"거리 검증"·"재시도 정책" 절이 **구현 완료됨** (`lib/ai.ts`, 커밋 `f03ed24`). `preFilter`(사전 필터링)는 기존과 동일하게 후보를 좁히고, `generateOnce`(Node 1) → `validateRoute`(Node 2, 코드 기반) 검증을 최대 3회(최초 1회 + 재시도 2회)까지 돈다. 실패 사유는 다음 `generateOnce` 호출의 프롬프트에 포함되어 같은 실수를 반복하지 않도록 유도한다. 3회 모두 실패하면 `CurationRoute.validationNote`에 안내 문구를 채워 반환하고, `app/ai-curator/page.tsx`가 이를 노란 배너로 표시한다.
+
+## LangGraph 실제 도입 (2026-07-20)
+
+위 "노드 구조"는 2026-07-14까지 수작업 `for` 루프(`generateOnce`→`validateRoute`→재시도)로만 구현되어 있었다. 이번에 `@langchain/langgraph`의 `StateGraph`로 그 루프를 명시적 그래프로 전환했다 (`lib/ai.ts`의 `CurationState`/`generateNode`/`validateNode`/`routeAfterValidate`/`curationGraph`).
+
+- 상태(`CurationState`): `request`, `workSpots`, `lifeSpots`, `route`, `valid`, `reasons`, `attempt`
+- 노드: `generate`(Node 1, `generateOnce` 호출) → `validate`(Node 2, `validateRoute` 호출, self-critique 아닌 코드 기반 검증은 기존과 동일)
+- 조건부 엣지(`routeAfterValidate`): `valid`면 종료, `attempt >= MAX_ATTEMPTS(3)`면 종료, 그 외엔 `generate`로 재진입
+- 로직 자체(검증 조건, 재시도 횟수, 거리 임계값)는 전혀 안 바뀜 — 기존 함수(`generateOnce`, `validateRoute`)를 그대로 노드 본문으로 재사용했고, 제어 흐름만 `for` 루프에서 그래프로 옮겼다.
+
+## RAG: 벡터 검색 사전 색인화 (2026-07-20)
+
+**문제**: `rankCandidates`(자유 텍스트 큐레이션)가 매 요청마다 `filterByPreferences`를 통과한 후보 전체(관광공사+카카오 실시간 병합 결과, 많으면 ~200곳)를 Voyage API로 재임베딩하고 있었다. 코퍼스가 24곳짜리 정적 목록이 아니라 `/api/spots`가 매번 조립하는 200+ 규모 동적 목록이라, 자유 텍스트 요청 1건당 "쿼리 1건 + 문서 최대 200건" 임베딩 API 호출이 반복되는 구조였다.
+
+**해결**: `lib/vector-store.ts`로 Upstash Vector를 연동해 코퍼스를 사전 색인화했다.
+- `reindexSpots`: 전체 워크스팟 코퍼스(`lib/spot-corpus.ts`의 `buildSpotCorpus`)를 배치(50건씩)로 Voyage 문서 임베딩 → Upstash Vector에 upsert. `/api/cron/reindex-spots`(Vercel Cron, 매일 KST 03:00, `vercel.json`)가 호출한다.
+- `queryTopK`: 사용자 자유 텍스트 **쿼리 1건만** 임베딩해 Upstash Vector에 유사도 검색. 색인 미설정(`UPSTASH_VECTOR_REST_URL`/`TOKEN` 없음)이거나 검색 실패 시 `null`을 반환한다.
+- `lib/ai.ts`의 `rankCandidates`가 `queryTopK`를 우선 시도하고, `null`이면 기존 `semanticSort`(요청마다 후보 전체 재임베딩)로 폴백한다 — 이 폴백 경로 덕분에 Upstash 설정 여부와 무관하게 기능이 항상 동작한다.
+
+**신선도 트레이드오프**: 관광공사/카카오 API 응답이 실시간으로 바뀔 수 있어 색인과 실제 후보 목록이 완전히 일치하지 않을 수 있다. `rankCandidates`는 벡터 검색으로 받은 id를 현재 요청의 후보 목록(`byId` Map)과 대조해 존재하는 것만 채택하고, 색인에 없거나(신규 스팟) 검색에 안 걸린 나머지는 뒤에 그대로 이어붙여 후보가 누락되지 않게 한다. "완전한 실시간 동기화"가 아니라 "주기적 재색인 + 결측 시 안전한 폴백"을 택했다.
+
+**필요 환경변수**: `UPSTASH_VECTOR_REST_URL`, `UPSTASH_VECTOR_REST_TOKEN` (Upstash Vector 콘솔, 인덱스 차원 1024 — voyage-4-lite 실측값), `CRON_SECRET`(임의 문자열, Vercel이 크론 호출 시 `Authorization: Bearer $CRON_SECRET`으로 자동 인증).

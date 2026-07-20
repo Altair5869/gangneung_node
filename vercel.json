@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/reindex-spots",
+      "schedule": "0 18 * * *"
+    }
+  ]
+}
