@@ -44,3 +44,14 @@
 - `docs/DATA_STATUS.md` — 필드별 실데이터/가짜데이터 구분표
 - `docs/AGENT_DESIGN.md` — LangGraph 노드 설계, 검증 조건, 네이버 API 라벨링 설계
 - `Gangneung_Node_Plan.md` (상위 폴더) — 공모전 제출용 기획서
+
+## 하네스: 강릉 노드 개발팀
+
+**목표:** PRD 분석 → 구현 → QA를 pm-analyst·developer·qa-engineer 3인 에이전트 팀으로 조율해, 데이터 필드 하드코딩 같은 이 프로젝트 고유 규칙 위반을 요구사항/구현/검증 각 단계에서 걸러낸다.
+
+**트리거:** 기능 개발, 버그 수정, PRD/기획 분석, QA 요청 시 `gangneung-node-team` 스킬을 사용하라. 단순 질문은 직접 응답 가능.
+
+**변경 이력:**
+| 날짜 | 변경 내용 | 대상 | 사유 |
+|------|----------|------|------|
+| 2026-07-25 | 초기 구성 (pm-analyst, developer, qa-engineer 3인 팀 + 오케스트레이터) | 전체 | PRD 분석·개발·기능 QA 하네스 구성 요청 |
