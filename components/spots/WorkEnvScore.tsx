@@ -4,7 +4,6 @@ import { cn, powerLabel, wifiLabel } from "@/lib/utils";
 function calcScore(spot: WorkSpot): { score: number; label: string } {
   let score = 0;
   if (spot.wifi.available) score += 30;
-  if ((spot.wifi.speedMbps ?? 0) >= 100) score += 10;
   if (spot.power.level === "충분함") score += 25;
   else if (spot.power.level === "제한적") score += 10;
   if (spot.noise === "언급됨-조용함") score += 25;
@@ -17,7 +16,6 @@ function calcScore(spot: WorkSpot): { score: number; label: string } {
 
 const CRITERIA = [
   { key: "wifi",       label: "WiFi 가용" },
-  { key: "wifiSpeed",  label: "WiFi 100Mbps 이상" },
   { key: "power",      label: "콘센트 (충분함/제한적)" },
   { key: "quiet",      label: "조용함 언급" },
   { key: "uncrowded",  label: "여유로운 혼잡도" },
@@ -46,7 +44,6 @@ export default function WorkEnvScore({ spot }: { spot: WorkSpot }) {
   // 레코드 타입은 하나로 통일해 checkVisual이 모든 항목에 동일하게 적용되게 한다.
   const checks: Record<(typeof CRITERIA)[number]["key"], boolean | null> = {
     wifi:      spot.wifi.available,
-    wifiSpeed: (spot.wifi.speedMbps ?? 0) >= 100,
     power:     spot.power.level === "충분함" || spot.power.level === "제한적",
     quiet:     spot.noise === "언급됨-조용함",
     uncrowded: spot.congestion === "low" || spot.congestion === "medium",
@@ -61,7 +58,7 @@ export default function WorkEnvScore({ spot }: { spot: WorkSpot }) {
         <span className={cn("text-4xl font-bold", text)}>{score}</span>
         <div className="text-right">
           <p className={cn("text-lg font-bold", text)}>{label}</p>
-          <p className="text-xs text-gray-400">/ 100점</p>
+          <p className="text-xs text-gray-400">/ 90점</p>
         </div>
       </div>
 

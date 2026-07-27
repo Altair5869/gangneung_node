@@ -1,4 +1,3 @@
-import { MOCK_SPOTS } from "@/lib/spots-data";
 import { getAreaBasedList, getBarrierFreeList, getCongestionMap } from "@/lib/tourism-api";
 import { mapTourismToWorkSpot, mapBarrierFreeToWorkSpot } from "@/lib/tourism-mapper";
 import { getKakaoCafes } from "@/lib/kakao-local-api";
@@ -42,7 +41,7 @@ export async function buildSpotCorpus(plannedTime?: Date): Promise<WorkSpot[]> {
     const regularSpots =
       rawRegular.length > 0
         ? rawRegular.map(mapTourismToWorkSpot).filter((s) => isWorkationSpot(s.name))
-        : MOCK_SPOTS;
+        : VERIFIED_SPOTS;
 
     const bfSpots =
       barrierFreeResult.status === "fulfilled" && barrierFreeResult.value.length > 0
@@ -98,6 +97,6 @@ export async function buildSpotCorpus(plannedTime?: Date): Promise<WorkSpot[]> {
 
     return [...overridden, ...missingVerified];
   } catch {
-    return [...MOCK_SPOTS, ...VERIFIED_SPOTS];
+    return VERIFIED_SPOTS;
   }
 }

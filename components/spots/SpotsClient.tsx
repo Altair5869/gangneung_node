@@ -8,7 +8,6 @@ import SpotCard from "@/components/spots/SpotCard";
 function calcScore(spot: WorkSpot): number {
   let score = 0;
   if (spot.wifi.available) score += 30;
-  if ((spot.wifi.speedMbps ?? 0) >= 100) score += 10;
   if (spot.power.level === "충분함") score += 25;
   else if (spot.power.level === "제한적") score += 10;
   if (spot.noise === "언급됨-조용함") score += 25;
