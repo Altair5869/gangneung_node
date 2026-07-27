@@ -117,7 +117,7 @@ export default async function SpotDetailPage({
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <SpecCard
                   label="WiFi"
-                  value={spot.wifi.available === true ? `${spot.wifi.speedMbps ?? "?"}Mbps` : spot.wifi.available === false ? "없음" : "정보 없음"}
+                  value={spot.wifi.available === null ? "정보 없음" : spot.wifi.available ? "있음" : "없음"}
                   available={spot.wifi.available}
                   accentColor="sky"
                 />

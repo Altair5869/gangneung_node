@@ -15,6 +15,11 @@ export function powerLabel(level: "충분함" | "제한적" | "없음" | null) {
   return { "충분함": "콘센트 충분", "제한적": "콘센트 적음", "없음": "콘센트 없음" }[level];
 }
 
+export function wifiLabel(available: boolean | null) {
+  if (available === null) return "WiFi 미확인";
+  return available ? "WiFi 있음" : "WiFi 없음";
+}
+
 export function congestionLabel(level?: "low" | "medium" | "high") {
   if (!level) return "정보 없음";
   return { low: "여유", medium: "보통", high: "혼잡" }[level];

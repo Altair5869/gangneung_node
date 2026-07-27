@@ -62,9 +62,9 @@ export default function MapSpotCard({
         <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", spot.noise !== "언급없음" ? noiseBadge[spot.noise] : "bg-gray-100 text-gray-400")}>
           {noiseLabel(spot.noise)}
         </span>
-        {spot.wifi.available && (
+        {spot.wifi.available === true && (
           <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium">
-            WiFi {spot.wifi.speedMbps}Mbps
+            WiFi
           </span>
         )}
         {(spot.power.level === "충분함" || spot.power.level === "제한적") && (

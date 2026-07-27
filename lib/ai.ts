@@ -111,7 +111,8 @@ function buildWorkSpotsContext(spots: WorkSpot[]): string {
   return spots
     .map((s) => {
       const desc = s.description ? ` | 설명:${s.description.slice(0, 80)}` : "";
-      return `id:${s.id} | ${s.name} (${s.category}) | lat:${s.lat.toFixed(4)} lng:${s.lng.toFixed(4)} | 소음:${s.noise === "언급없음" ? "미확인" : s.noise} | WiFi:${s.wifi.available ? "O" : "X"} | 콘센트:${s.power.level ?? "미확인"} | 태그:[${s.tags.join(",")}]${desc}`;
+      const wifiLabel = s.wifi.available === null ? "미확인" : s.wifi.available ? "O" : "X";
+      return `id:${s.id} | ${s.name} (${s.category}) | lat:${s.lat.toFixed(4)} lng:${s.lng.toFixed(4)} | 소음:${s.noise === "언급없음" ? "미확인" : s.noise} | WiFi:${wifiLabel} | 콘센트:${s.power.level ?? "미확인"} | 태그:[${s.tags.join(",")}]${desc}`;
     })
     .join("\n");
 }

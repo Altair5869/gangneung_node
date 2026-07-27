@@ -1,5 +1,5 @@
 import { WorkSpot } from "@/types";
-import { cn, powerLabel } from "@/lib/utils";
+import { cn, powerLabel, wifiLabel } from "@/lib/utils";
 
 function calcScore(spot: WorkSpot): { score: number; label: string } {
   let score = 0;
@@ -30,12 +30,22 @@ function scoreColor(score: number) {
   return               { bar: "bg-red-400",    text: "text-red-500",   ring: "bg-red-50 border-red-200" };
 }
 
+// 체크 항목은 확정 true/false 뿐 아니라 "미확인"(null)도 가질 수 있다 (예: wifi.available).
+// null을 false로 뭉개면 "확정된 없음"처럼 보이므로, 배지 아이콘/색을 3단계로 분리한다.
+function checkVisual(state: boolean | null) {
+  if (state === true) return { badge: "bg-sky-600 text-white", icon: "✓", text: "text-gray-700" };
+  if (state === false) return { badge: "bg-gray-100 text-gray-300", icon: "✗", text: "text-gray-400" };
+  return { badge: "bg-gray-50 text-gray-400 border border-gray-200", icon: "–", text: "text-gray-400 italic" };
+}
+
 export default function WorkEnvScore({ spot }: { spot: WorkSpot }) {
   const { score, label } = calcScore(spot);
   const { bar, text, ring } = scoreColor(score);
 
-  const checks: Record<(typeof CRITERIA)[number]["key"], boolean> = {
-    wifi:      spot.wifi.available ?? false,
+  // wifi만 null(미확인)을 가질 수 있는 tri-state. 나머지는 항상 boolean이지만
+  // 레코드 타입은 하나로 통일해 checkVisual이 모든 항목에 동일하게 적용되게 한다.
+  const checks: Record<(typeof CRITERIA)[number]["key"], boolean | null> = {
+    wifi:      spot.wifi.available,
     wifiSpeed: (spot.wifi.speedMbps ?? 0) >= 100,
     power:     spot.power.level === "충분함" || spot.power.level === "제한적",
     quiet:     spot.noise === "언급됨-조용함",
@@ -65,19 +75,26 @@ export default function WorkEnvScore({ spot }: { spot: WorkSpot }) {
 
       {/* 체크리스트 */}
       <ul className="space-y-2">
-        {CRITERIA.map((c) => (
-          <li key={c.key} className="flex items-center gap-2.5 text-sm">
-            <span className={cn(
-              "flex-shrink-0 w-4 h-4 rounded-full flex items-center justify-center text-xs font-bold",
-              checks[c.key] ? "bg-sky-600 text-white" : "bg-gray-100 text-gray-300"
-            )}>
-              {checks[c.key] ? "✓" : "✗"}
-            </span>
-            <span className={checks[c.key] ? "text-gray-700" : "text-gray-400"}>
-              {c.key === "power" ? powerLabel(spot.power.level) : c.label}
-            </span>
-          </li>
-        ))}
+        {CRITERIA.map((c) => {
+          const v = checkVisual(checks[c.key]);
+          const criterionLabel =
+            c.key === "power" ? powerLabel(spot.power.level) :
+            c.key === "wifi"  ? wifiLabel(spot.wifi.available) :
+            c.label;
+          return (
+            <li key={c.key} className="flex items-center gap-2.5 text-sm">
+              <span className={cn(
+                "flex-shrink-0 w-4 h-4 rounded-full flex items-center justify-center text-xs font-bold",
+                v.badge
+              )}>
+                {v.icon}
+              </span>
+              <span className={v.text}>
+                {criterionLabel}
+              </span>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );
