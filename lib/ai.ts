@@ -46,7 +46,17 @@ const RECOMMEND_TOOL: Anthropic.Tool = {
   },
 };
 
-function filterByPreferences(spots: WorkSpot[], request: CurationRequest): WorkSpot[] {
+// 검증 가능한(validateRoute가 실제로 체크하는) preference 3개. "뷰 좋은 곳"/"카페인 충전 가능"은
+// 구조화된 필드가 없어 필터·검증 어느 쪽에도 없다 (docs/AGENT_DESIGN.md 매핑표 참고).
+const CHECKABLE_PREFERENCES = ["조용한 환경", "콘센트 필수", "무장애 접근 가능"] as const;
+
+// filterByPreferences의 "5곳 미만이면 전체 무시" 폴백과 curateRoute의 조기 종료 분기가
+// 반드시 같은 임계값을 봐야 하므로 상수로 공유한다 (2026-07-27, P2 항목 1).
+const MIN_PREFERENCE_MATCHES = 5;
+
+// 폴백 판단(임계값 미달 여부)과 실제 필터링을 분리했다 — curateRoute가 "몇 곳이나 조건을
+// 만족하는지"를 폴백 발동 이전에 미리 알아야 조기 종료 여부를 결정할 수 있기 때문이다.
+function applyPreferenceFilters(spots: WorkSpot[], request: CurationRequest): WorkSpot[] {
   let filtered = [...spots];
 
   // validateRoute와 동일한 기준(확정된 "언급됨-시끄러움"만 제외)으로 통일함(2026-07-27).
@@ -59,7 +69,12 @@ function filterByPreferences(spots: WorkSpot[], request: CurationRequest): WorkS
   if (request.preferences.includes("무장애 접근 가능"))
     filtered = filtered.filter((s) => isBarrierFree(s.barrierFree));
 
-  return filtered.length >= 5 ? filtered : spots;
+  return filtered;
+}
+
+function filterByPreferences(spots: WorkSpot[], request: CurationRequest): WorkSpot[] {
+  const filtered = applyPreferenceFilters(spots, request);
+  return filtered.length >= MIN_PREFERENCE_MATCHES ? filtered : spots;
 }
 
 function buildEmbeddingText(spot: RouteStop): string {
@@ -92,6 +107,13 @@ async function rankCandidates(spots: WorkSpot[], request: CurationRequest): Prom
     if (vectorIds) {
       const byId = new Map(spots.map((s) => [s.id, s]));
       const ranked = vectorIds.map((id) => byId.get(id)).filter((s): s is WorkSpot => s !== undefined);
+      // queryTopK는 미설정/실패 시에만 null을 반환한다 — 검색은 성공했지만 반환된 id가 현재 요청의
+      // 후보(spots)와 하나도 안 겹치면(재색인을 한 번도 안 돌린 빈 인덱스, 코퍼스가 색인 이후 크게
+      // 바뀐 경우 등) ranked가 빈 배열이 되는데, 이때는 null이 아니라서 이 분기를 안 타고 그냥
+      // rest(원본 순서)만 반환되던 것이 문제였다. 그러면 랭킹이 사실상 무력화됐는데도 프롬프트는
+      // "상위 3~5개 안에서 고르라"는 거짓 전제를 계속 강제하게 된다. ranked가 비어 있으면 벡터
+      // 검색 결과를 신뢰하지 않고 semanticSort(실시간 재임베딩)로 폴백한다 (2026-07-27, P2 항목 3).
+      if (ranked.length === 0) return semanticSort(freeText, spots);
       const rankedIds = new Set(ranked.map((s) => s.id));
       const rest = spots.filter((s) => !rankedIds.has(s.id));
       return [...ranked, ...rest];
@@ -267,20 +289,34 @@ function totalSequentialDistance(spots: RouteStop[]): number {
   return total;
 }
 
+// reasons는 두 종류로 나뉜다: (1) 사용자가 선택한 preferences(콘센트/무장애/조용한 환경) 위반 —
+// curateRoute의 조기 종료 분기가 이미 "조건을 완화했다"고 안내하므로 중복 경고가 필요 없다,
+// (2) 그 외 구조적 위반(워크스팟 개수, 식당 누락, 거리 초과) — 조기 종료 분기라도 반드시 알려야 한다.
+// 문자열 패턴 매칭(예: "조건 위반" 포함 여부)에 기대지 않고, push하는 시점에 바로 태깅해서
+// 두 함수(curateRoute 조기 종료 분기, validateNode)가 각자 필요한 목록을 그대로 쓰게 한다(2026-07-27, QA FIX).
 function validateRoute(
   route: CurationRoute,
   request: CurationRequest
-): { valid: boolean; reasons: string[] } {
+): { valid: boolean; reasons: string[]; structuralReasons: string[] } {
   const reasons: string[] = [];
+  const structuralReasons: string[] = [];
+  const pushStructural = (reason: string) => {
+    reasons.push(reason);
+    structuralReasons.push(reason);
+  };
+  const pushPreference = (reason: string) => {
+    reasons.push(reason);
+  };
+
   const workStops = route.spots.filter((s): s is WorkSpot => !isLifeSpot(s));
 
   if (workStops.length !== 1) {
-    reasons.push(`워크스팟은 정확히 1곳이어야 합니다: 현재 ${workStops.length}곳`);
+    pushStructural(`워크스팟은 정확히 1곳이어야 합니다: 현재 ${workStops.length}곳`);
   }
 
   const hasFood = route.spots.some((s) => isLifeSpot(s) && s.category === "food");
   if (!hasFood) {
-    reasons.push("식당이 동선에 포함되지 않았습니다");
+    pushStructural("식당이 동선에 포함되지 않았습니다");
   }
 
   // power.level은 noise와 달리 전화 확인/방문으로 사실 확인이 가능한 필드(CLAUDE.md 데이터 규칙 1)라
@@ -289,7 +325,7 @@ function validateRoute(
   if (request.preferences.includes("콘센트 필수")) {
     workStops.forEach((s) => {
       if (s.power.level !== "충분함" && s.power.level !== "제한적") {
-        reasons.push(`콘센트 조건 위반: ${s.name}`);
+        pushPreference(`콘센트 조건 위반: ${s.name}`);
       }
     });
   }
@@ -297,7 +333,7 @@ function validateRoute(
   if (request.preferences.includes("무장애 접근 가능")) {
     workStops.forEach((s) => {
       if (!isBarrierFree(s.barrierFree)) {
-        reasons.push(`무장애 조건 위반: ${s.name}`);
+        pushPreference(`무장애 조건 위반: ${s.name}`);
       }
     });
   }
@@ -305,7 +341,7 @@ function validateRoute(
   if (request.preferences.includes("조용한 환경")) {
     workStops.forEach((s) => {
       if (s.noise === "언급됨-시끄러움") {
-        reasons.push(`조용한 환경 조건 위반: ${s.name}`);
+        pushPreference(`조용한 환경 조건 위반: ${s.name}`);
       }
     });
   }
@@ -313,10 +349,10 @@ function validateRoute(
   const threshold = distanceThresholdFor(request.duration);
   const distance = totalSequentialDistance(route.spots);
   if (distance > threshold) {
-    reasons.push(`이동 거리 초과: 총 ${distance.toFixed(1)}km (기준 ${threshold}km)`);
+    pushStructural(`이동 거리 초과: 총 ${distance.toFixed(1)}km (기준 ${threshold}km)`);
   }
 
-  return { valid: reasons.length === 0, reasons };
+  return { valid: reasons.length === 0, reasons, structuralReasons };
 }
 
 const MAX_ATTEMPTS = 3;
@@ -401,8 +437,37 @@ export async function curateRoute(
   // 숙소는 사용자가 이미 머무는 곳이지 "일하러 이동할 목적지"가 아니므로 워케이션 동선에서는 제외한다.
   // 숙박 자체 추천은 /stay 페이지에서 별도로 다룬다.
   const nonStaySpots = availableSpots.filter((s) => s.category !== "hotel");
+
+  // filterByPreferences의 "5곳 미만이면 조건 전체를 무시하고 원본으로 복귀" 폴백이 발동하면,
+  // validateRoute는 여전히 엄격하게 검증하므로 LangGraph가 최대 3회(MAX_ATTEMPTS) 전부 실패할
+  // 것이 이 시점에 이미 확정된다. 3회 낭비 대신 1회만 생성하고, 어떤 조건 조합이 문제인지 명시한다
+  // (2026-07-27, P2 항목 1 결정 — 실측: 실제 231곳 코퍼스에서 "조용한 환경"+"콘센트 필수"+"무장애
+  // 접근 가능" 3개 동시 선택도 7곳으로 임계값(5) 위였으나, barrierFree/power 데이터가 지금보다
+  // 줄어들면 재현 가능한 경로라 방어적으로 남겨둔다. docs/AGENT_DESIGN.md "선호 조건 조기 종료 폴백"
+  // 절 참고).
+  const activeCheckablePreferences = CHECKABLE_PREFERENCES.filter((p) => request.preferences.includes(p));
+  const strictMatchCount = activeCheckablePreferences.length > 0
+    ? applyPreferenceFilters(nonStaySpots, request).length
+    : nonStaySpots.length;
+
   const workSpots = await preFilter(nonStaySpots, request);
   const lifeSpots = balanceLifeSpots(availableLifeSpots, workSpots, 15);
+
+  if (activeCheckablePreferences.length > 0 && strictMatchCount < MIN_PREFERENCE_MATCHES) {
+    const route = await generateOnce(request, workSpots, lifeSpots);
+    // 재시도 루프(MAX_ATTEMPTS)는 다시 태우지 않는다 — 이미 "후보 자체가 부족해 재시도해도 소용없다"는
+    // 것이 조기 종료의 전제이므로 validateRoute는 1회만 호출해 구조적 위반(워크스팟 개수/식당 누락/거리
+    // 초과) 여부만 확인한다. preferences 위반(콘센트/무장애/조용한 환경)은 위 안내 문구가 이미 다루므로
+    // structuralReasons에서 제외된다 (2026-07-27, QA FIX — 조기 종료가 validateRoute를 완전히 우회해
+    // 296.5km짜리 동선이 무경고로 반환된 문제).
+    const { structuralReasons } = validateRoute(route, request);
+    const baseNote = `선택하신 조건(${activeCheckablePreferences.join(", ")})을 모두 만족하는 곳이 ${strictMatchCount}곳뿐이라, 조건을 완화한 결과를 보여드립니다.`;
+    const validationNote =
+      structuralReasons.length > 0
+        ? `${baseNote} 다만 ${structuralReasons.join("; ")} 문제도 있어 참고해 주세요.`
+        : baseNote;
+    return finalizeRoute({ ...route, validationNote }, request);
+  }
 
   const result = await curationGraph.invoke({
     request,
