@@ -49,8 +49,11 @@ const RECOMMEND_TOOL: Anthropic.Tool = {
 function filterByPreferences(spots: WorkSpot[], request: CurationRequest): WorkSpot[] {
   let filtered = [...spots];
 
+  // validateRoute와 동일한 기준(확정된 "언급됨-시끄러움"만 제외)으로 통일함(2026-07-27).
+  // noise는 확정 사실이 아니라 신호(CLAUDE.md 데이터 규칙 3)이므로, "언급없음"(미확인)을
+  // 사전 필터 단계에서부터 배제하는 건 근거 없이 후보군을 좁히는 것과 같다.
   if (request.preferences.includes("조용한 환경"))
-    filtered = filtered.filter((s) => s.noise === "언급됨-조용함");
+    filtered = filtered.filter((s) => s.noise !== "언급됨-시끄러움");
   if (request.preferences.includes("콘센트 필수"))
     filtered = filtered.filter((s) => s.power.level === "충분함" || s.power.level === "제한적");
   if (request.preferences.includes("무장애 접근 가능"))
@@ -280,6 +283,9 @@ function validateRoute(
     reasons.push("식당이 동선에 포함되지 않았습니다");
   }
 
+  // power.level은 noise와 달리 전화 확인/방문으로 사실 확인이 가능한 필드(CLAUDE.md 데이터 규칙 1)라
+  // "필수" 조건에서는 null(미확인)도 위반으로 판정한다 — 확인 안 된 곳을 "충족"으로 쳐주면 필수 조건의
+  // 의미가 약해진다. filterByPreferences도 동일 기준(null 제외)이라 필터-검증 간 정합성은 이미 맞음(2026-07-27 재확인).
   if (request.preferences.includes("콘센트 필수")) {
     workStops.forEach((s) => {
       if (s.power.level !== "충분함" && s.power.level !== "제한적") {
