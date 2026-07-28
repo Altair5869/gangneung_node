@@ -2,7 +2,7 @@ import { getAreaBasedList, getBarrierFreeList, getCongestionMap, getAttractionLi
 import { mapTourismToWorkSpot, mapBarrierFreeToWorkSpot, mapTourismToLifeSpot, mapTourismToFoodSpot, mapTourismToStaySpot } from "@/lib/tourism-mapper";
 import { getKakaoCafes } from "@/lib/kakao-local-api";
 import { estimateCongestion, looksLikeCafe } from "@/lib/utils";
-import { VERIFIED_SPOTS } from "@/lib/verified-spots";
+import { VERIFIED_SPOTS, mergeVerifiedFields } from "@/lib/verified-spots";
 import { WorkSpot, LifeSpot, TourismApiItem } from "@/types";
 
 const WORKATION_KEYWORDS = [
@@ -74,20 +74,14 @@ export async function buildSpotCorpus(plannedTime?: Date): Promise<WorkSpot[]> {
       congestion: cMap.get(s.tourismContentId ?? "") ?? estimateCongestion(s.id, plannedTime),
     }));
 
-    // 실측 데이터(24곳): wifi/power/noise를 전화 확인·방문·웹 스크리닝으로 확정한 값으로 덮어쓰고,
-    // 관광공사/카카오 API가 이번 요청에서 못 가져온 곳(주로 도서관)은 그대로 추가한다.
+    // 실측 데이터(24곳): wifi/power/noise/barrierFree를 전화 확인·방문·웹 스크리닝으로 확정한 값으로
+    // 덮어쓰고, 관광공사/카카오 API가 이번 요청에서 못 가져온 곳(주로 도서관)은 그대로 추가한다.
+    // 병합 로직 자체는 lib/verified-spots.ts의 mergeVerifiedFields로 공유해, /api/spots/[id]
+    // (app/api/spots/[id]/route.ts)와 필드 목록이 어긋나지 않게 한다(2026-07-28 버그 수정).
     const verifiedById = new Map(VERIFIED_SPOTS.map((v) => [v.tourismContentId, v]));
     const overridden = withCongestion.map((s) => {
       const v = s.tourismContentId ? verifiedById.get(s.tourismContentId) : undefined;
-      if (!v) return s;
-      return {
-        ...s,
-        wifi: v.wifi,
-        power: v.power,
-        noise: v.noise,
-        barrierFree: v.barrierFree ?? s.barrierFree,
-        tags: Array.from(new Set([...s.tags, ...v.tags])),
-      };
+      return mergeVerifiedFields(s, v);
     });
     const presentContentIds = new Set(overridden.map((s) => s.tourismContentId).filter(Boolean));
     const missingVerified = VERIFIED_SPOTS.filter((v) => !presentContentIds.has(v.tourismContentId)).map((v) => ({

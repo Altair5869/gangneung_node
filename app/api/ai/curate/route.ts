@@ -14,6 +14,34 @@ interface CurateRequestBody {
 // 강제해, 직접 호출하는 제3자/향후 QA 자동화가 암묵적 매핑 규칙에 기대지 않게 한다(2026-07-28, P3 항목 4).
 const VALID_DURATIONS = [2, 4, 6, 8];
 
+// maxDuration: 이 라우트는 사용자가 브라우저에서 직접 기다리는 동기 경로다(cron과 달리 백그라운드
+// 작업이 아님) — 미선언 시 Vercel 플랫폼 기본 타임아웃(플랜에 따라 10초 수준)에 걸려 정상 케이스도
+// 조기 504가 날 수 있다.
+//
+// 실측(2026-07-28, 로컬 dev, 실제 Voyage/Claude 호출, 코퍼스 231곳 기준, 재시도 없이 1회 성공):
+//   - freeText 없음(혼잡도 정렬만, 벡터/임베딩 미사용): 12.4초
+//   - freeText 있음 + Upstash Vector 색인 사용(queryTopK 빠른 경로): 13.6초
+//   - freeText 있음 + Upstash Vector 미설정 강제(semanticSort 실시간 재임베딩 폴백, 429 없음): 13.6초
+//   → 코퍼스 조회(buildSpotCorpus/buildLifeSpotCorpus, 각 0.05초 안팎)는 병목이 아니고, Claude
+//     haiku 호출 1회 왕복이 대부분을 차지한다. 세 경로 모두 재시도 없는 1회 성공 기준 12~14초대로
+//     수렴함 — "이 값 자체"를 그대로 상한으로 쓰면 안 되고(재시도/429를 안 겪은 낙관적 경우), 아래
+//     최악 추정의 기준선으로만 사용한다.
+//   - 참고: 후보(spots)가 실제로 비어 클라이언트-서버 id 교집합이 0건이 되는 예외 케이스는
+//     curationGraph가 MAX_ATTEMPTS(3회) Claude 호출을 전부 소진하고도 "추천 장소를 찾을 수
+//     없습니다" 500을 던지는데, 이때도 4.7초에 끝났다 — Claude 호출 자체는 빠르고, 위 12~14초는
+//     대부분 코퍼스 조회+임베딩+응답 조립까지 합친 시간이다.
+// 최악 추정(코드 추적, docs/AGENT_DESIGN.md "Node1/Node2 재시도 루프" 참고):
+//   - Voyage 429가 겹치면 embed()가 MAX_RETRIES=3회 × 기본 20초 대기를 전부 소진해 semanticSort
+//     한 번이 최대 ~60초까지 늘어날 수 있음(lib/embeddings.ts).
+//   - validateRoute가 계속 불합격이면 curationGraph가 generateNode(Claude 호출)를 MAX_ATTEMPTS=3회
+//     반복(lib/ai.ts) — 위 실측 기준 Claude 왕복을 12~14초로 잡으면 3회 합 최대 ~42초.
+//   - 랭킹 폴백(최대 ~60초, 요청당 1회만 발생)과 Claude 재시도(최대 ~42초)가 겹치는 최악의 경우
+//     합산 ~100초. Vercel Hobby 함수 실행시간 상한(300초, fluid compute 기준, 재색인 라우트 주석
+//     참고)에는 여유가 있으나, 위 실측(12~14초)의 8~10배에 해당하는 값이라 여유를 두고 120초로
+//     명시한다 — 사용자 대면 경로라 값을 낮게 잡아 정상 케이스까지 조기 타임아웃 나는 쪽이
+//     더 나쁘다고 판단.
+export const maxDuration = 120;
+
 // curateRoute가 곧바로 workStyle/duration/preferences에 의존하므로(예: filterByPreferences,
 // distanceThresholdFor) 형태가 맞는지만 확인한다. 값의 의미(예: workStyle이 실제로 유효한
 // 카테고리인지)는 curateRoute/validateRoute의 책임 범위이므로 여기서는 검증하지 않는다.

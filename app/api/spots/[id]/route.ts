@@ -2,17 +2,18 @@ import { NextResponse } from "next/server";
 import { getDetailCommon, getBarrierFreeDetail } from "@/lib/tourism-api";
 import { mapTourismToWorkSpot, mapBarrierFreeToWorkSpot } from "@/lib/tourism-mapper";
 import { getKakaoCafes } from "@/lib/kakao-local-api";
-import { VERIFIED_SPOTS } from "@/lib/verified-spots";
+import { VERIFIED_SPOTS, mergeVerifiedFields } from "@/lib/verified-spots";
 import { BarrierFreeItem, WorkSpot } from "@/types";
 
 const verifiedById = new Map(VERIFIED_SPOTS.map((v) => [v.id, v]));
 const verifiedByContentId = new Map(VERIFIED_SPOTS.map((v) => [v.tourismContentId, v]));
 
-// 실측 데이터(24곳)가 있으면 wifi/power/noise를 그 값으로 덮어쓴다.
+// 실측 데이터(24곳)가 있으면 wifi/power/noise/barrierFree를 그 값으로 덮어쓴다.
+// lib/spot-corpus.ts의 buildSpotCorpus와 동일한 병합 로직(mergeVerifiedFields)을 공유한다 —
+// 필드 목록이 두 곳에서 따로 유지되면 한쪽만 고칠 때 다시 어긋날 수 있어서다(2026-07-28 버그 수정).
 function applyVerified(spot: WorkSpot): WorkSpot {
   const v = spot.tourismContentId ? verifiedByContentId.get(spot.tourismContentId) : undefined;
-  if (!v) return spot;
-  return { ...spot, wifi: v.wifi, power: v.power, noise: v.noise, tags: Array.from(new Set([...spot.tags, ...v.tags])) };
+  return mergeVerifiedFields(spot, v);
 }
 
 export async function GET(

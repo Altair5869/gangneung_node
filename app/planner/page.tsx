@@ -118,6 +118,22 @@ function PlanCard({
       <div
         className="p-5 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors"
         onClick={onToggle}
+        role="button"
+        tabIndex={0}
+        aria-expanded={isExpanded}
+        onKeyDown={(e) => {
+          // 카드 내부 "공유 링크"/"삭제" 버튼에 포커스가 있을 때 Enter/Space를 누르면 그 버튼
+          // 자체의 클릭 동작만 발생해야 한다(버튼 클릭 핸들러가 이미 stopPropagation으로 카드
+          // onClick 전파를 막고 있음, :130,141). 이 onKeyDown은 카드 헤더 div에만 달려 있으므로
+          // 버튼이 포커스를 가진 상태에서는 키 이벤트가 버튼에서 먼저 처리되고 이 핸들러까지
+          // 버블링되지 않는다 — 다만 혹시 모를 재전파를 막기 위해 이벤트 대상이 div 자신일 때만
+          // 토글하도록 e.target === e.currentTarget으로도 한 번 더 방어한다.
+          if (e.target !== e.currentTarget) return;
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onToggle();
+          }
+        }}
       >
         <div className="flex-1 min-w-0">
           <h3 className="font-bold text-gray-900 truncate">{plan.name}</h3>
