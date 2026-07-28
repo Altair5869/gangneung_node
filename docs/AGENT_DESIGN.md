@@ -4,7 +4,7 @@
 
 ## 왜 필요한가 (LLM 호출을 늘리는 게 아니라 코드 검증을 추가하는 이유)
 
-지금 `curateRoute`는 `preferences`(무장애, 콘센트 등)를 지켰는지 확인하는 코드가 없다. Claude가 조건에 안 맞는 스팟을 골라도 그대로 사용자에게 나간다. 또한 `nearestNeighborSort`는 `Math.hypot(lat 차이, lng 차이)`로 거리를 계산하는데, 이건 실제 km가 아니라 위경도 차이를 그냥 유클리드 거리로 계산한 값이다. 이 두 결함을 코드로 검증하는 게 목적이다.
+과거 `curateRoute`에는 `preferences`(무장애, 콘센트 등)를 지켰는지 확인하는 코드가 없었고, 거리 계산도 위경도 차이를 `Math.hypot`으로 재는 부정확한 방식(현재는 `calculateHaversineDistance`로 교체되어 제거됨)이었다. 이 설계 문서는 그 두 결함을 코드 검증으로 메우기 위해 작성됐다(이 결함은 아래 "노드 구조"/"Node 1/2 구현 상태" 절에서 이미 해소됨).
 
 ## 노드 구조
 
@@ -16,7 +16,7 @@
 
 ## preferences ↔ 필드 매핑
 
-`PREFERENCE_OPTIONS`(`app/ai-curator/page.tsx`) 6개 중 검증 가능한 4개만 검증 대상으로 한다.
+`PREFERENCE_OPTIONS`(`app/ai-curator/page.tsx`)는 5개다. 그중 검증 가능한(사실·신호 기반으로 코드가 확인할 수 있는) 3개만 검증 대상으로 한다(`CHECKABLE_PREFERENCES`, `lib/ai.ts`). "빠른 WiFi"는 애초에 옵션 목록에도 없다(수집 불가 필드이므로 제거됨) — 아래 표는 참고용으로 "만약 있었다면 검증 불가였을 항목"까지 포함해 6행으로 정리했다.
 
 | preference 값 | 검증 여부 | 사전 필터(`filterByPreferences`) 조건 | 검증(`validateRoute`) 조건 | 비고 |
 |---|---|---|---|---|
@@ -55,8 +55,8 @@ PRD 검토 중 `filterByPreferences`(사전 필터)와 `validateRoute`(Node 2 �
 
 ## 거리 검증 (구현 완료, 2026-07-14)
 
-1. `nearestNeighborSort`가 쓰는 `Math.hypot` 계산은 이미 하버사인 공식(`calculateHaversineDistance`)으로 교체됨.
-2. `duration`(2/4/6/8시간)별 총 이동거리 임계값을 순차 합 방식으로 검증한다 (`lib/ai.ts` `totalSequentialDistance`). 순차 합을 택한 이유: `nearestNeighborSort`가 만든 실제 방문 순서 그대로 사용자가 이동할 거리를 반영하는 게 "하루 동선" 개념과 가장 잘 맞음 (반경 방식은 방문 순서와 무관한 면적 지표라 실제 이동 부담을 안 나타냄).
+1. 거리 계산은 하버사인 공식(`calculateHaversineDistance`)을 쓴다.
+2. `duration`(2/4/6/8시간)별 총 이동거리 임계값을 순차 합 방식으로 검증한다 (`lib/ai.ts` `totalSequentialDistance`). 순차 합을 택한 이유: LLM이 반환한 `order` 배열이 곧 실제 방문 순서이고, 순차 합은 그 순서 그대로 사용자가 이동할 거리를 반영하는 게 "하루 동선" 개념과 가장 잘 맞음 (반경 방식은 방문 순서와 무관한 면적 지표라 실제 이동 부담을 안 나타냄).
 
 | duration | 총 이동거리 임계값 |
 |---|---|
@@ -73,9 +73,9 @@ PRD 검토 중 `filterByPreferences`(사전 필터)와 `validateRoute`(Node 2 �
 
 ## 재시도 정책
 
-- 최대 재시도 횟수: 2회 (제안, 미확정 — 무한 루프 방지 + Claude API 비용 고려)
+- 최대 재시도 횟수: 2회 (`MAX_ATTEMPTS = 3`, `lib/ai.ts`. 확정·구현 완료, 2026-07-14 — 무한 루프 방지 + Claude API 비용 고려)
 - 재시도 시 실패 이유(예: "무장애 조건 위반: 스팟 X")를 다음 프롬프트에 명시적으로 넣는다. 이유 없이 같은 프롬프트로 재호출하면 같은 결과가 나올 확률이 높다.
-- 2회 다 실패하면: 에러를 던지지 않고 "일부 조건을 만족하는 동선을 찾지 못해 근접한 결과를 보여드립니다"라는 안내와 함께 마지막 결과를 반환한다 (제안, 미확정).
+- 2회 다 실패하면: 에러를 던지지 않고 "일부 조건을 만족하는 동선을 찾지 못해 근접한 결과를 보여드립니다"라는 안내와 함께 마지막 결과를 반환한다 (확정·구현 완료, `validationNote`, `lib/ai.ts` `curateRoute` 내 `result.valid`가 `false`일 때 분기).
 - **재시도 시 후보 집합은 고정된다 (의도된 트레이드오프, 2026-07-27 결정).** 자세한 근거는 아래 "재시도 시 후보 고정 결정" 절 참고.
 
 ## wifi/power/noise 실측 확보 — 실제 진행 방식 (2026-07-11 완료, 아래는 계획이 아니라 실적)
@@ -102,12 +102,14 @@ PRD 검토 중 `filterByPreferences`(사전 필터)와 `validateRoute`(Node 2 �
 
 **데이터 흐름**: `scripts/data/spots_enriched.csv`/`selected_library.csv`에 사람이 직접(또는 Claude가 웹 스크리닝 결과를 받아 적어서) wifi_real/power_real/noise_signal을 채우면, `scripts/build_verified_spots.py`가 `candidates_*.csv`의 위경도와 조인해서 `scripts/data/verified_spots.json`을 만들고, `lib/verified-spots.ts` → `app/api/spots/route.ts`/`app/api/spots/[id]/route.ts`가 관광공사/카카오 실시간 응답에 override 병합한다. 자세한 스키마 상태는 `docs/DATA_STATUS.md` 참고.
 
-## 미확정 항목 정리 (구현 전 확정 필요)
+## 확정된 설계 결정 이력 (과거 미확정 항목, 전부 해소됨)
 
-1. duration별 거리 임계값 4개 숫자
-2. 거리 계산: 순차 합 vs 반경
-3. 재시도 실패 시 동작: fallback 문구 vs 에러
-4. ~~wifi 커뮤니티 신호(네이버 API) vs 직접 조사만 사용 최종 선택~~ **확정됨 (2026-07-11)**: 직접 조사(웹 스크리닝 + 전화/방문 확인)만 사용. `wifi.communitySignal` 필드는 만들지 않음. noise도 네이버 API 대신 WebSearch로 대체 진행 — 위 "wifi/power/noise 실측 확보" 절 참고
+1. duration별 거리 임계값 4개 숫자 → (구현 완료, 위 "거리 검증" 절 참고)
+2. 거리 계산: 순차 합 vs 반경 → 순차 합으로 확정 (구현 완료, 위 "거리 검증" 절 참고)
+3. 재시도 실패 시 동작: fallback 문구 vs 에러 → fallback 문구(`validationNote`)로 확정 (구현 완료, 위 "재시도 정책" 절 참고)
+4. wifi 커뮤니티 신호(네이버 API) vs 직접 조사만 사용 최종 선택 → **확정됨 (2026-07-11)**: 직접 조사(웹 스크리닝 + 전화/방문 확인)만 사용. `wifi.communitySignal` 필드는 만들지 않음. noise도 네이버 API 대신 WebSearch로 대체 진행 — 위 "wifi/power/noise 실측 확보" 절 참고
+
+현재 미확정 항목은 0개다.
 
 ## Node 1/2 구현 상태 (2026-07-14 갱신)
 

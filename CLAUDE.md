@@ -13,7 +13,7 @@
 
 - Frontend: Next.js (App Router), TypeScript, Tailwind CSS
 - 현재 AI: Claude API (`claude-haiku-4-5-20251001`), `lib/ai.ts`의 `curateRoute` 함수
-- Node1(생성)→Node2(코드 검증)→재시도 루프는 `@langchain/langgraph`의 `StateGraph`로 구현됨 (2026-07-20). 자유 텍스트 큐레이션은 Upstash Vector(`lib/vector-store.ts`)에 사전 색인된 임베딩으로 검색하고, 미설정/실패 시 실시간 재임베딩으로 폴백함. 자세한 내용은 `docs/AGENT_DESIGN.md` 참고
+- Node1(생성)→Node2(코드 검증)→재시도 루프는 `@langchain/langgraph`의 `StateGraph`로 구현됨 (2026-07-20). 자유 텍스트 큐레이션은 Upstash Vector(`lib/vector-store.ts`)에 사전 색인된 임베딩으로 검색하고, 미설정/실패 시 실시간 재임베딩으로 폴백함. 임베딩 제공자는 Voyage AI(`voyage-4-lite`, 차원 1024). 자세한 내용은 `docs/AGENT_DESIGN.md` 참고
 - Python+FastAPI 마이크로서비스 분리, LangChain, Chroma/pgvector는 도입하지 않기로 결정함 (Next.js 단일 배포 유지가 공모전 마감 리스크 대비 더 합리적이라 판단)
 
 **주의**: `Gangneung_Node_Plan.md`에는 "LLM (OpenAI/Gemini) 연동"이라고 적혀 있으나 실제 구현은 Claude API다. 기획서 제출 전 이 불일치를 수정해야 한다.
@@ -36,7 +36,7 @@
 ## AI 에이전트 설계 규칙
 
 1. `curateRoute`의 결과를 그대로 신뢰하지 않는다. 사용자가 선택한 `preferences`(무장애, 콘센트 등)를 코드로 검증하는 단계가 반드시 있어야 한다.
-2. `nearestNeighborSort`(`lib/ai.ts`)는 위경도 차이를 `Math.hypot`으로 계산하므로 실제 km 거리가 아니다. 거리 검증 로직을 짤 때는 하버사인 공식으로 새로 계산한다.
+2. 거리 검증은 `calculateHaversineDistance`(`lib/ai.ts`)로 계산한다(하버사인 공식). 방문 순서 자체는 LLM이 반환하는 `order` 배열을 그대로 쓰고, 거리 검증은 이 순서를 따라 `totalSequentialDistance`가 순차 합산한다.
 3. 검증은 LLM에게 "이거 괜찮아?"라고 다시 묻는 self-critique 방식이 아니라, 코드로 명시된 조건(불리언/숫자 비교)으로 한다. 자세한 노드 설계는 `docs/AGENT_DESIGN.md` 참고.
 
 ## 참고 문서
