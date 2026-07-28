@@ -226,3 +226,27 @@ PRD 검토 중 `filterByPreferences`(사전 필터)와 `validateRoute`(Node 2 �
 **결정: 코드 변경 없음, 삭제 로직 미구현 유지.** 실제 코퍼스 규모(231곳)와 위 변동성 분석을 종합하면, 삭제 로직(예: 이전 색인의 id 목록을 저장해두고 이번 색인과 차집합을 구해 `index.delete()` 호출)을 추가하는 구현·유지보수 비용 대비, stale 벡터가 실제로 쌓이는 속도와 그로 인한 랭킹 품질 저하 효과가 낮다고 판단했다. `topK`가 `Math.max(spots.length, 30)`으로 넉넉하게 설정돼 있어(현재 코퍼스 231곳 기준 231개 요청), stale 벡터 몇 개가 상위 슬롯을 차지해도 `byId` 대조 후 남는 실질 랭킹 후보 수에 미치는 영향은 미미하다.
 
 **재검토가 필요해지는 조건**: 카카오 API 응답 정책이 바뀌거나(예: 정렬 기준을 거리에서 인기도로 변경) 코퍼스 소스가 늘어나 id 체계가 더 유동적인 소스(예: 사용자 제보 기반 목록)로 확장되면, 이 판단을 다시 검토해야 한다.
+
+## 클라이언트→서버 스팟 왕복 검증 (2026-07-28, P3 항목 1)
+
+**문제**: `/api/ai/curate`가 클라이언트가 보낸 `spots`/`lifeSpots` 배열(원래 `/api/spots`, `/api/life-spots`, `/api/food-spots`가 내려준 것을 그대로 왕복시킨 값)을 내용 검증 없이 `curateRoute`에 넘겼다. 존재하지 않는 id 주입, `wifi.available`/`power.level`/`noise`/`barrierFree`/`description` 필드 위조(프롬프트 인젝션 경로 포함)가 가능했다.
+
+**결정: 서버가 클라이언트 제공 값을 신뢰하지 않고, id만 힌트로 쓰고 필드 값은 전량 서버 코퍼스로 치환.** `app/api/ai/curate/route.ts`가 `curateRoute` 호출 전에 `buildSpotCorpus()`(`lib/spot-corpus.ts`, 기존)와 새로 추가한 `buildLifeSpotCorpus()`를 직접 호출해 서버 자체 코퍼스를 만들고, 클라이언트가 보낸 배열의 각 원소를 `id` 기준으로 이 코퍼스에서 다시 조회해 **매칭되는 서버 쪽 객체로 완전히 치환**한다(원본 배열의 다른 필드 값은 전혀 안 쓰임). 코퍼스에 없는 id는 자동으로 걸러진다.
+
+`buildLifeSpotCorpus()`는 `/api/life-spots`(attraction)·`/api/food-spots`(food, `looksLikeCafe` 제외)·`/api/stay-spots`(stay)와 완전히 동일한 조회·필터·매핑 로직을 재사용한다 — 다르게 구현하면 "정상 클라이언트가 실제로 받을 수 있었던 id 집합"과 검증 코퍼스가 어긋나 오탐/누락이 생기기 때문이다.
+
+**트레이드오프**: `/api/ai/curate` 요청마다 `buildSpotCorpus()`(관광공사 3종 API + 무장애 API + 카카오 카페 API + 혼잡도 API)와 `buildLifeSpotCorpus()`(관광공사 3종 API)를 매번 새로 호출한다 — 이미 `/api/spots` 등에서 한 번 계산된 값을 클라이언트가 그대로 들고 왔었는데, 이를 신뢰하지 않기로 한 대가로 큐레이션 요청마다 외부 API 재조회 비용이 추가된다. 응답 지연·API 쿼터 소비가 늘어나는 것은 알고 있는 트레이드오프이며, 보안/데이터 정합성(위조 필드가 판정에 영향을 주지 않아야 한다는 요건)이 우선한다고 판단해 이 방향을 택했다. 캐싱(예: 재색인 크론과 동일 주기로 코퍼스를 짧게 캐시)은 이번 범위 밖이며, 지연이 실제로 문제가 되면 추후 별도 항목으로 다룬다.
+
+## toolUse.input 런타임 검증 (2026-07-28, P3 항목 3)
+
+**문제**: `generateOnce`(`lib/ai.ts`)가 Claude의 `recommend_route` tool_use 응답을 `as` 타입 단언만으로 신뢰했다. `tool_choice` 강제 + `required` 스키마로 발생 확률은 낮지만, 필드가 비어 있으면 재시도 루프 밖(`withDistanceTip`)에서 원인 불명의 `TypeError`가 났다.
+
+**결정**: `isRecommendToolInput` 수동 타입가드(zod 등 새 라이브러리 도입 없이 최소 diff)를 추가해 `generateOnce` 내부에서 명시적 에러로 바꿨다. `stopNotes.length === order.length`까지 확인한다(두 배열을 인덱스로 짝짓는 `noteById` 로직이 있어서, 길이가 어긋나면 조용히 잘못 짝지어질 수 있기 때문).
+
+**이 에러는 `routeAfterValidate`의 상태 기반 재시도 루프를 타지 않는다 — 의도된 선택.** 재시도 루프는 "정상적으로 반환된 route가 검증 기준(`validateRoute`)을 통과하지 못했을 때"만 발동하는 state 기반 메커니즘이고, LangGraph `StateGraph`는 노드에 `retryPolicy`를 별도로 지정하지 않는 한 노드가 던진 예외를 자동으로 재시도하지 않는다(`node_modules/@langchain/langgraph` 확인). `isRecommendToolInput` 실패를 억지로 이 루프에 태우려면 `route: null` 상태를 만들고 `validateNode`/`finalizeRoute`(둘 다 route가 있다고 가정하고 `route.spots`에 바로 접근함) 양쪽에 null 방어 코드를 추가해야 하는데, 스키마 검증 실패는 매우 드문 케이스라 이 복잡도·회귀 리스크를 들일 근거가 약하다고 판단했다. 대신 "정체불명 TypeError"였던 기존 증상을 "원인이 명시된 즉시 실패"로 개선하는 데 그쳤다 — 실패는 `curationGraph.invoke()`를 reject시켜 `route.ts`의 바깥쪽 catch(`curation_failed`, 500)로 바로 간다.
+
+## duration 값 API 계약 (2026-07-28, P3 항목 4)
+
+**결정**: (b) 채택. `app/api/ai/curate/route.ts`의 `isValidCurationRequest`에 `[2, 4, 6, 8].includes(v.duration)` 검증을 추가해, 그 외 값은 `400 invalid_curation_request`로 거부한다. 항목 1에서 어차피 이 라우트의 입력 검증부를 다시 만지게 되어 diff가 작았고, `/api/ai/curate`를 직접 호출하는 제3자/QA 자동화에 계약을 명시적으로 강제하는 편이 "암묵적으로 최근접 버킷에 매핑된다"보다 낫다고 판단했다.
+
+`distanceThresholdFor`(`lib/ai.ts`) 자체의 최근접 버킷 매핑 로직(동점 시 작은 값 우선)은 그대로 남아 있다 — 위 API 계약 검증을 통과한 값(2/4/6/8)은 애초에 버킷과 정확히 일치하므로 매핑 로직이 실질적으로 쓰일 일은 없지만, 함수 자체를 단순화하는 것은 이번 범위 밖이라 손대지 않았다.

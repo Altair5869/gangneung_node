@@ -1,9 +1,9 @@
-import { getAreaBasedList, getBarrierFreeList, getCongestionMap } from "@/lib/tourism-api";
-import { mapTourismToWorkSpot, mapBarrierFreeToWorkSpot } from "@/lib/tourism-mapper";
+import { getAreaBasedList, getBarrierFreeList, getCongestionMap, getAttractionList, getFoodList, getStayList } from "@/lib/tourism-api";
+import { mapTourismToWorkSpot, mapBarrierFreeToWorkSpot, mapTourismToLifeSpot, mapTourismToFoodSpot, mapTourismToStaySpot } from "@/lib/tourism-mapper";
 import { getKakaoCafes } from "@/lib/kakao-local-api";
-import { estimateCongestion } from "@/lib/utils";
+import { estimateCongestion, looksLikeCafe } from "@/lib/utils";
 import { VERIFIED_SPOTS } from "@/lib/verified-spots";
-import { WorkSpot } from "@/types";
+import { WorkSpot, LifeSpot, TourismApiItem } from "@/types";
 
 const WORKATION_KEYWORDS = [
   "카페", "커피", "coffee", "cafe",
@@ -99,4 +99,37 @@ export async function buildSpotCorpus(plannedTime?: Date): Promise<WorkSpot[]> {
   } catch {
     return VERIFIED_SPOTS;
   }
+}
+
+const hasValidCoords = (item: TourismApiItem): boolean =>
+  Boolean(item.mapx) && Boolean(item.mapy) && parseFloat(item.mapx) !== 0;
+
+// /api/ai/curate가 클라이언트 제공 lifeSpots(id/필드)를 그대로 신뢰하지 않고 서버가 직접 조회한
+// 코퍼스와 대조하기 위한 함수(2026-07-28, P3 항목 1). /api/life-spots, /api/food-spots,
+// /api/stay-spots 3개 라우트와 완전히 동일한 조회·필터·매핑 로직을 여기 한 곳에 모아 공유한다 —
+// 다르게 구현하면 "실제 클라이언트가 받을 수 있었던 id 집합"과 검증 코퍼스가 어긋나서, 정상 id가
+// 부당하게 걸러지거나 반대로 필터를 우회한 id가 통과하는 사고가 날 수 있다.
+export async function buildLifeSpotCorpus(): Promise<LifeSpot[]> {
+  const [attractionResult, foodResult, stayResult] = await Promise.allSettled([
+    getAttractionList(),
+    getFoodList(),
+    getStayList(),
+  ]);
+
+  const attractions =
+    attractionResult.status === "fulfilled"
+      ? attractionResult.value.filter(hasValidCoords).map(mapTourismToLifeSpot)
+      : [];
+
+  // /api/food-spots와 동일하게 카페처럼 보이는 이름은 제외한다 — 카페는 WorkSpot 코퍼스 쪽에서
+  // 이미 다루므로, 정상 클라이언트는 애초에 이 id를 받을 수 없다.
+  const food =
+    foodResult.status === "fulfilled"
+      ? foodResult.value.filter(hasValidCoords).filter((item) => !looksLikeCafe(item.title)).map(mapTourismToFoodSpot)
+      : [];
+
+  const stay =
+    stayResult.status === "fulfilled" ? stayResult.value.filter(hasValidCoords).map(mapTourismToStaySpot) : [];
+
+  return [...attractions, ...food, ...stay];
 }

@@ -183,6 +183,38 @@ export function calculateHaversineDistance(lat1: number, lng1: number, lat2: num
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+interface RecommendToolInput {
+  workSpotId: string;
+  lifeSpotIds: string[];
+  order: string[];
+  summary: string;
+  stopNotes: string[];
+  tips: string[];
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((x) => typeof x === "string");
+}
+
+// 프로젝트에 zod 등 런타임 스키마 검증 라이브러리가 없으므로(package.json 확인) 수동 타입가드로
+// 최소 diff 처리한다(2026-07-28, P3 항목 3, docs/AGENT_DESIGN.md "toolUse.input 런타임 검증" 절 참고).
+// stopNotes.length === order.length까지 확인하는 이유: finalizeRoute 이전 단계에서
+// `parsed.order.map((id, i) => [id, parsed.stopNotes[i]])`(아래 noteById)가 인덱스로 두 배열을
+// 짝짓기 때문에, 길이가 어긋나면 일부 stopNotes가 조용히 버려지거나 undefined가 섞여 들어간다.
+function isRecommendToolInput(input: unknown): input is RecommendToolInput {
+  if (!input || typeof input !== "object") return false;
+  const v = input as Record<string, unknown>;
+  return (
+    typeof v.workSpotId === "string" &&
+    isStringArray(v.lifeSpotIds) &&
+    isStringArray(v.order) &&
+    typeof v.summary === "string" &&
+    isStringArray(v.stopNotes) &&
+    isStringArray(v.tips) &&
+    v.stopNotes.length === v.order.length
+  );
+}
+
 async function generateOnce(
   request: CurationRequest,
   workSpots: WorkSpot[],
@@ -233,14 +265,16 @@ async function generateOnce(
   const toolUse = response.content.find((c) => c.type === "tool_use");
   if (!toolUse || toolUse.type !== "tool_use") throw new Error("AI 응답 오류");
 
-  const parsed = toolUse.input as {
-    workSpotId: string;
-    lifeSpotIds: string[];
-    order: string[];
-    summary: string;
-    stopNotes: string[];
-    tips: string[];
-  };
+  // tool_choice로 recommend_route 호출 자체는 강제되지만(230줄), Anthropic SDK/모델 버전이 바뀌거나
+  // 스키마와 어긋난 응답이 오면 toolUse.input의 "필드 형태"까지는 강제되지 않는다. 예전에는 `as`
+  // 단언만 믿고 넘어가서, tips 같은 필드가 비어 있으면 재시도 루프 밖(withDistanceTip)에서 정체불명
+  // TypeError로 터졌다. 여기서 명시적으로 검증해 원인이 분명한 에러로 바꾼다(2026-07-28, P3 항목 3).
+  if (!isRecommendToolInput(toolUse.input)) {
+    throw new Error(
+      `AI 응답 스키마 불일치: recommend_route 필수 필드가 없거나 타입이 맞지 않습니다 (${JSON.stringify(toolUse.input)})`
+    );
+  }
+  const parsed = toolUse.input;
 
   // stopNotes[i]는 order[i]에 대한 설명이라는 전제로 짝지어 Map에 담아 둔다 — 이후 orderedIds가
   // 필터링/보정으로 원래 order와 달라져도, id 기준으로 찾으면 설명문이 절대 다른 장소로 안 붙는다.
@@ -406,6 +440,17 @@ const CurationState = Annotation.Root({
 
 async function generateNode(state: typeof CurationState.State) {
   const feedback = state.reasons.length > 0 ? state.reasons.join("; ") : undefined;
+  // 주의: generateOnce가 isRecommendToolInput 검증 실패로 던지는 에러는 여기서 catch하지 않는다.
+  // 그 결과 이 예외는 validateNode/routeAfterValidate의 state 기반 재시도 루프를 타지 않고
+  // curationGraph.invoke() 자체를 reject시켜 곧바로 route.ts의 바깥쪽 catch(500 curation_failed)로
+  // 간다 — LangGraph StateGraph는 노드에 retryPolicy를 별도로 지정하지 않는 한 노드가 던진 예외를
+  // 자동으로 재시도하지 않으며(node_modules/@langchain/langgraph 확인), routeAfterValidate의 재시도는
+  // "정상적으로 반환된 route가 검증 기준을 통과하지 못했을 때"만 발동하는 별개 메커니즘이기 때문이다.
+  // 스키마 검증 실패를 억지로 이 루프에 태우려면(예: route:null을 리턴하고 validateNode/finalizeRoute가
+  // null route를 안전하게 처리하도록 고치는 등) 방어 코드가 여러 곳에 더 필요해지는데, tool_choice
+  // 강제 + required 스키마 덕분에 실제 발생 확률이 매우 낮은 케이스라 그 복잡도를 들일 가치가 없다고
+  // 판단했다. 대신 "정체불명 TypeError"였던 기존 증상을 "원인이 명시된 즉시 실패"로 바꾸는 데
+  // 그쳤다(2026-07-28, P3 항목 3 결정 — 근거는 docs/AGENT_DESIGN.md에도 기록).
   const route = await generateOnce(state.request, state.workSpots, state.lifeSpots, feedback);
   return { route, attempt: state.attempt + 1 };
 }
@@ -438,6 +483,13 @@ export async function curateRoute(
   // 숙박 자체 추천은 /stay 페이지에서 별도로 다룬다.
   const nonStaySpots = availableSpots.filter((s) => s.category !== "hotel");
 
+  // 워크스팟 쪽과 대칭되는 이유로 라이프스팟 쪽 숙박(category: "stay")도 여기서 배제한다.
+  // balanceLifeSpots는 category !== "food"만 보고 나머지를 전부 "휴식"으로 취급하므로, 배제하지
+  // 않으면 stay가 rest에 섞여 워크-라이프 동선에 숙박 시설이 등장할 수 있다(2026-07-28, P3 항목 2).
+  // UI(app/ai-curator/page.tsx)는 attraction+food만 보내 실사용 경로에서는 발생하지 않지만,
+  // /api/ai/curate를 직접 호출하는 경로까지 계약으로 강제하기 위해 여기서 명시적으로 막는다.
+  const nonStayLifeSpots = availableLifeSpots.filter((s) => s.category !== "stay");
+
   // filterByPreferences의 "5곳 미만이면 조건 전체를 무시하고 원본으로 복귀" 폴백이 발동하면,
   // validateRoute는 여전히 엄격하게 검증하므로 LangGraph가 최대 3회(MAX_ATTEMPTS) 전부 실패할
   // 것이 이 시점에 이미 확정된다. 3회 낭비 대신 1회만 생성하고, 어떤 조건 조합이 문제인지 명시한다
@@ -451,7 +503,7 @@ export async function curateRoute(
     : nonStaySpots.length;
 
   const workSpots = await preFilter(nonStaySpots, request);
-  const lifeSpots = balanceLifeSpots(availableLifeSpots, workSpots, 15);
+  const lifeSpots = balanceLifeSpots(nonStayLifeSpots, workSpots, 15);
 
   if (activeCheckablePreferences.length > 0 && strictMatchCount < MIN_PREFERENCE_MATCHES) {
     const route = await generateOnce(request, workSpots, lifeSpots);
