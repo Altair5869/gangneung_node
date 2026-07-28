@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { getSpotById, MOCK_SPOTS } from "@/lib/spots-data";
 import { getDetailCommon, getBarrierFreeDetail } from "@/lib/tourism-api";
 import { mapTourismToWorkSpot, mapBarrierFreeToWorkSpot } from "@/lib/tourism-mapper";
 import { getKakaoCafes } from "@/lib/kakao-local-api";
@@ -21,10 +20,6 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-
-  // mock 데이터에서 먼저 탐색
-  const mockSpot = getSpotById(id);
-  if (mockSpot) return NextResponse.json({ spot: mockSpot });
 
   // 실측 데이터 전용 ID (관광공사/카카오 API에 없는 곳, 예: 도서관)
   const verifiedOnly = verifiedById.get(id);
@@ -78,8 +73,4 @@ export async function GET(
   }
 
   return NextResponse.json({ error: "Not found" }, { status: 404 });
-}
-
-export function generateStaticParams() {
-  return MOCK_SPOTS.map((s) => ({ id: s.id }));
 }
