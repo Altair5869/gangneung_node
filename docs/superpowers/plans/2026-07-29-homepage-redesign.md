@@ -31,8 +31,8 @@
 - [ ] **Step 1: `app/globals.css` 전체를 아래 내용으로 교체**
 
 ```css
-@import "tailwindcss";
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+@import "tailwindcss";
 
 :root {
   --color-primary: #0F6B62;
