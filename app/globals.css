@@ -4,6 +4,7 @@
 :root {
   --color-primary: #0F6B62;
   --color-primary-dark: #0A3B37;
+  --color-hero-glow: #0F6B62;
   --color-accent: #B8511E;
   --color-background: #FDFAF4;
   --color-foreground: #14100C;
@@ -23,6 +24,7 @@
 @theme inline {
   --color-primary: var(--color-primary);
   --color-primary-dark: var(--color-primary-dark);
+  --color-hero-glow: var(--color-hero-glow);
   --color-accent: var(--color-accent);
   --color-background: var(--color-background);
   --color-foreground: var(--color-foreground);

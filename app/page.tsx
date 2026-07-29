@@ -69,7 +69,7 @@ export default function HomePage() {
   return (
     <div className="flex flex-col">
       {/* 히어로 — 라이트/다크 공용 짙은 톤 */}
-      <section className="relative overflow-hidden min-h-[88vh] flex items-center bg-[linear-gradient(135deg,var(--color-primary-dark),var(--color-primary))]">
+      <section className="relative overflow-hidden min-h-[88vh] flex items-center bg-[linear-gradient(135deg,var(--color-primary-dark),var(--color-hero-glow))]">
         <div className="relative max-w-6xl mx-auto px-4 py-24 w-full">
           <div className="max-w-3xl">
             <span className="inline-block text-xs font-semibold tracking-widest text-white/80 uppercase mb-6">
@@ -170,7 +170,7 @@ export default function HomePage() {
       </section>
 
       {/* 강릉 소개 배너 — 라이트/다크 공용 짙은 톤 */}
-      <section className="relative overflow-hidden py-20 bg-[linear-gradient(135deg,var(--color-primary-dark),var(--color-primary))]">
+      <section className="relative overflow-hidden py-20 bg-[linear-gradient(135deg,var(--color-primary-dark),var(--color-hero-glow))]">
         <div className="relative max-w-4xl mx-auto px-4 text-center">
           <p className="text-white/70 text-sm font-semibold tracking-widest uppercase mb-4">Why Gangneung</p>
           <h2 className="text-3xl sm:text-4xl font-bold text-white mb-6">
