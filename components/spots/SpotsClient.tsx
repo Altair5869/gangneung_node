@@ -84,12 +84,12 @@ export default function SpotsClient({ allSpots }: { allSpots: WorkSpot[] }) {
   return (
     <>
       {/* 필터 바 */}
-      <div className="sticky top-14 z-30 bg-white border-b border-gray-100 shadow-sm">
+      <div className="sticky top-14 z-30 bg-background border-b border-border shadow-sm">
         <div className="max-w-6xl mx-auto px-4 py-3 space-y-2.5">
 
           {/* 검색창 */}
           <div className="relative">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
             <input
@@ -97,12 +97,12 @@ export default function SpotsClient({ allSpots }: { allSpots: WorkSpot[] }) {
               placeholder="장소 이름 또는 주소로 검색"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:border-sky-400 focus:bg-white transition-colors"
+              className="w-full pl-9 pr-4 py-2 text-sm border border-border rounded-xl bg-muted focus:outline-none focus:border-primary focus:bg-background transition-colors text-foreground"
             />
             {query && (
               <button
                 onClick={() => setQuery("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground/40 hover:text-foreground text-xs"
               >
                 ✕
               </button>
@@ -121,8 +121,8 @@ export default function SpotsClient({ allSpots }: { allSpots: WorkSpot[] }) {
                   className={cn(
                     "px-3 py-1.5 text-xs rounded-lg border whitespace-nowrap transition-colors",
                     category === opt.value
-                      ? "bg-gray-900 text-white border-gray-900"
-                      : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"
+                      ? "bg-foreground text-background border-foreground"
+                      : "bg-background text-foreground/70 border-border hover:border-foreground/40"
                   )}
                 >
                   {opt.label}
@@ -130,11 +130,11 @@ export default function SpotsClient({ allSpots }: { allSpots: WorkSpot[] }) {
               ))}
             </div>
 
-            <div className="w-px h-5 bg-gray-200 hidden sm:block" />
+            <div className="w-px h-5 bg-border hidden sm:block" />
 
             {/* 소음도 */}
             <div className="flex items-center gap-1">
-              <span className="text-xs text-gray-400 whitespace-nowrap">소음</span>
+              <span className="text-xs text-foreground/40 whitespace-nowrap">소음</span>
               {NOISE_OPTIONS.map((opt) => (
                 <button
                   key={opt.value}
@@ -142,8 +142,8 @@ export default function SpotsClient({ allSpots }: { allSpots: WorkSpot[] }) {
                   className={cn(
                     "px-2.5 py-1.5 text-xs rounded-lg border whitespace-nowrap transition-colors",
                     noise === opt.value
-                      ? "bg-gray-900 text-white border-gray-900"
-                      : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"
+                      ? "bg-foreground text-background border-foreground"
+                      : "bg-background text-foreground/70 border-border hover:border-foreground/40"
                   )}
                 >
                   {opt.label}
@@ -151,11 +151,11 @@ export default function SpotsClient({ allSpots }: { allSpots: WorkSpot[] }) {
               ))}
             </div>
 
-            <div className="w-px h-5 bg-gray-200 hidden sm:block" />
+            <div className="w-px h-5 bg-border hidden sm:block" />
 
             {/* 콘센트 */}
             <div className="flex items-center gap-1">
-              <span className="text-xs text-gray-400 whitespace-nowrap">콘센트</span>
+              <span className="text-xs text-foreground/40 whitespace-nowrap">콘센트</span>
               {POWER_OPTIONS.map((opt) => (
                 <button
                   key={opt.value}
@@ -163,8 +163,8 @@ export default function SpotsClient({ allSpots }: { allSpots: WorkSpot[] }) {
                   className={cn(
                     "px-2.5 py-1.5 text-xs rounded-lg border whitespace-nowrap transition-colors",
                     power === opt.value
-                      ? "bg-gray-900 text-white border-gray-900"
-                      : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"
+                      ? "bg-foreground text-background border-foreground"
+                      : "bg-background text-foreground/70 border-border hover:border-foreground/40"
                   )}
                 >
                   {opt.label}
@@ -172,20 +172,20 @@ export default function SpotsClient({ allSpots }: { allSpots: WorkSpot[] }) {
               ))}
             </div>
 
-            <div className="w-px h-5 bg-gray-200 hidden sm:block" />
+            <div className="w-px h-5 bg-border hidden sm:block" />
 
             {/* 편의시설 토글 */}
             <div className="flex items-center gap-1.5">
               {[
-                { label: "WiFi", active: wifi, toggle: () => setWifi((v) => !v), color: "bg-blue-600 border-blue-600" },
-                { label: "무장애", active: barrierFree, toggle: () => setBarrierFree((v) => !v), color: "bg-teal-600 border-teal-600" },
+                { label: "WiFi", active: wifi, toggle: () => setWifi((v) => !v), color: "bg-primary border-primary" },
+                { label: "무장애", active: barrierFree, toggle: () => setBarrierFree((v) => !v), color: "bg-accent border-accent" },
               ].map(({ label, active, toggle, color }) => (
                 <button
                   key={label}
                   onClick={toggle}
                   className={cn(
                     "px-3 py-1.5 text-xs rounded-lg border whitespace-nowrap transition-colors",
-                    active ? `${color} text-white` : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"
+                    active ? `${color} text-white` : "bg-background text-foreground/70 border-border hover:border-foreground/40"
                   )}
                 >
                   {label}
@@ -193,11 +193,11 @@ export default function SpotsClient({ allSpots }: { allSpots: WorkSpot[] }) {
               ))}
             </div>
 
-            <div className="w-px h-5 bg-gray-200 hidden sm:block" />
+            <div className="w-px h-5 bg-border hidden sm:block" />
 
             {/* 작업 환경 점수 */}
             <div className="flex items-center gap-1">
-              <span className="text-xs text-gray-400 whitespace-nowrap">점수</span>
+              <span className="text-xs text-foreground/40 whitespace-nowrap">점수</span>
               {SCORE_OPTIONS.map((opt) => (
                 <button
                   key={opt.value}
@@ -205,8 +205,8 @@ export default function SpotsClient({ allSpots }: { allSpots: WorkSpot[] }) {
                   className={cn(
                     "px-2.5 py-1.5 text-xs rounded-lg border whitespace-nowrap transition-colors",
                     minScore === opt.value
-                      ? "bg-green-600 text-white border-green-600"
-                      : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"
+                      ? "bg-good text-white border-good"
+                      : "bg-background text-foreground/70 border-border hover:border-foreground/40"
                   )}
                 >
                   {opt.label}
@@ -218,12 +218,12 @@ export default function SpotsClient({ allSpots }: { allSpots: WorkSpot[] }) {
             <div className="ml-auto flex items-center gap-3 flex-shrink-0">
               {isFiltered && (
                 <>
-                  <span className="text-xs text-sky-600 font-semibold whitespace-nowrap">
+                  <span className="text-xs text-primary font-semibold whitespace-nowrap">
                     {filtered.length}곳 검색됨
                   </span>
                   <button
                     onClick={reset}
-                    className="text-xs text-gray-400 hover:text-gray-700 underline whitespace-nowrap transition-colors"
+                    className="text-xs text-foreground/40 hover:text-foreground underline whitespace-nowrap transition-colors"
                   >
                     초기화
                   </button>
@@ -235,16 +235,13 @@ export default function SpotsClient({ allSpots }: { allSpots: WorkSpot[] }) {
       </div>
 
       {/* 스팟 그리드 */}
-      <div className="relative flex-1 overflow-hidden bg-gradient-to-b from-sky-50 via-white to-white">
-        <div className="absolute top-0 right-[-10%] w-[500px] h-[500px] bg-sky-100/60 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-[-10%] w-[400px] h-[400px] bg-teal-100/50 rounded-full blur-3xl pointer-events-none" />
-
+      <div className="relative flex-1 bg-background">
         <div className="relative max-w-6xl mx-auto px-4 py-8 w-full">
           {filtered.length === 0 ? (
             <div className="text-center py-24">
-              <p className="text-lg font-semibold text-gray-700">조건에 맞는 장소가 없어요</p>
-              <p className="text-sm text-gray-400 mt-1">검색어나 필터를 조정해보세요.</p>
-              <button onClick={reset} className="mt-4 text-sm text-sky-600 font-semibold hover:underline">
+              <p className="text-lg font-semibold text-foreground">조건에 맞는 장소가 없어요</p>
+              <p className="text-sm text-foreground/60 mt-1">검색어나 필터를 조정해보세요.</p>
+              <button onClick={reset} className="mt-4 text-sm text-primary font-semibold hover:underline">
                 필터 초기화
               </button>
             </div>
