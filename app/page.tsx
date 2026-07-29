@@ -86,7 +86,7 @@ export default function HomePage() {
             <div className="flex flex-wrap gap-4 mb-8">
               <Link
                 href="/ai-curator"
-                className="px-7 py-4 bg-white text-primary rounded-xl font-semibold text-sm hover:bg-white/90 transition-colors shadow-lg shadow-black/10"
+                className="px-7 py-4 bg-white text-hero-glow rounded-xl font-semibold text-sm hover:bg-white/90 transition-colors shadow-lg shadow-black/10"
               >
                 AI 동선 만들기
               </Link>
@@ -190,7 +190,7 @@ export default function HomePage() {
             ].map((item) => (
               <div key={item.label} className="bg-white/10 rounded-2xl p-4 border border-white/10">
                 <p className="text-2xl font-bold text-white">{item.value}</p>
-                <p className="text-xs text-white/70 mt-1">{item.label}</p>
+                <p className="text-xs text-white/85 mt-1">{item.label}</p>
               </div>
             ))}
           </div>
