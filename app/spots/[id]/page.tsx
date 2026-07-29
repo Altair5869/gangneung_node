@@ -3,6 +3,7 @@ import Link from "next/link";
 import { noiseLabel, congestionLabel, cn, isBarrierFree } from "@/lib/utils";
 import WorkEnvScore from "@/components/spots/WorkEnvScore";
 import { WorkSpot } from "@/types";
+import { categoryLabel, categoryGradient, noiseBadge, congestionStyle } from "@/lib/spot-visuals";
 
 async function getSpot(id: string): Promise<WorkSpot | null> {
   const res = await fetch(
@@ -15,29 +16,6 @@ async function getSpot(id: string): Promise<WorkSpot | null> {
 }
 
 export const dynamic = "force-dynamic";
-
-const categoryLabel: Record<string, string> = {
-  cafe: "카페", coworking: "코워킹", library: "도서관", hotel: "호텔", other: "기타",
-};
-
-const categoryGradient: Record<string, string> = {
-  cafe: "from-accent to-accent/70",
-  coworking: "from-primary to-primary/70",
-  library: "from-primary-dark to-primary",
-  hotel: "from-hero-glow to-primary/60",
-  other: "from-border to-muted",
-};
-
-const noiseBg: Record<string, string> = {
-  "언급됨-조용함": "bg-good/15 text-good",
-  "언급됨-시끄러움": "bg-bad/15 text-bad",
-};
-
-const congestionStyle: Record<string, { bg: string; dot: string }> = {
-  low: { bg: "bg-good/15 text-good", dot: "bg-good" },
-  medium: { bg: "bg-warn/15 text-warn", dot: "bg-warn" },
-  high: { bg: "bg-bad/15 text-bad", dot: "bg-bad" },
-};
 
 export default async function SpotDetailPage({
   params,
@@ -83,7 +61,7 @@ export default async function SpotDetailPage({
             </span>
           )}
           {spot.congestion && (
-            <span className={cn("flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full shadow-sm", congestionStyle[spot.congestion].bg)}>
+            <span className={cn("flex items-center gap-1.5 bg-background/90 backdrop-blur-sm text-xs font-semibold px-3 py-1 rounded-full shadow-sm", congestionStyle[spot.congestion].text)}>
               <span className={cn("w-1.5 h-1.5 rounded-full", congestionStyle[spot.congestion].dot)} />
               예상 {congestionLabel(spot.congestion)}
             </span>
@@ -135,14 +113,14 @@ export default async function SpotDetailPage({
                 />
                 <div className="bg-background border border-border rounded-2xl p-4">
                   <p className="text-xs text-foreground/40 mb-2">소음도</p>
-                  <span className={cn("text-xs font-semibold px-2.5 py-1 rounded-full", spot.noise !== "언급없음" ? noiseBg[spot.noise] : "bg-muted text-foreground/60")}>
+                  <span className={cn("text-xs font-semibold px-2.5 py-1 rounded-full", spot.noise !== "언급없음" ? noiseBadge[spot.noise] : "bg-muted text-foreground/60")}>
                     {noiseLabel(spot.noise)}
                   </span>
                 </div>
                 {spot.congestion && (
                   <div className="bg-background border border-border rounded-2xl p-4">
                     <p className="text-xs text-foreground/40 mb-2">예상 혼잡도</p>
-                    <span className={cn("flex items-center gap-1.5 text-xs font-semibold w-fit px-2.5 py-1 rounded-full", congestionStyle[spot.congestion].bg)}>
+                    <span className={cn("flex items-center gap-1.5 text-xs font-semibold w-fit px-2.5 py-1 rounded-full", congestionStyle[spot.congestion].text)}>
                       <span className={cn("w-1.5 h-1.5 rounded-full", congestionStyle[spot.congestion].dot)} />
                       {congestionLabel(spot.congestion)}
                     </span>
