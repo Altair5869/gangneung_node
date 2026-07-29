@@ -1,44 +1,12 @@
 import Link from "next/link";
 import { WorkSpot } from "@/types";
 import { cn, noiseLabel, congestionLabel, powerLabel, isBarrierFree } from "@/lib/utils";
-
-const categoryLabel: Record<WorkSpot["category"], string> = {
-  cafe: "카페",
-  coworking: "코워킹",
-  library: "도서관",
-  hotel: "호텔",
-  other: "기타",
-};
-
-const categoryGradient: Record<WorkSpot["category"], string> = {
-  cafe: "from-amber-400 to-orange-400",
-  coworking: "from-blue-500 to-indigo-500",
-  library: "from-emerald-400 to-teal-500",
-  hotel: "from-sky-400 to-blue-500",
-  other: "from-gray-400 to-slate-500",
-};
-
-const noiseBadge: Record<"언급됨-조용함" | "언급됨-시끄러움", string> = {
-  "언급됨-조용함": "bg-green-100 text-green-700",
-  "언급됨-시끄러움": "bg-red-100 text-red-700",
-};
-
-const powerBadge: Record<"충분함" | "제한적" | "없음", string> = {
-  "충분함": "bg-purple-100 text-purple-700",
-  "제한적": "bg-amber-100 text-amber-700",
-  "없음": "bg-gray-100 text-gray-400",
-};
-
-const congestionStyle: Record<"low" | "medium" | "high", { dot: string; text: string }> = {
-  low: { dot: "bg-green-400", text: "text-green-600" },
-  medium: { dot: "bg-yellow-400", text: "text-yellow-600" },
-  high: { dot: "bg-red-400", text: "text-red-600" },
-};
+import { categoryLabel, categoryGradient, noiseBadge, powerBadge, congestionStyle } from "@/lib/spot-visuals";
 
 export default function SpotCard({ spot }: { spot: WorkSpot }) {
   return (
     <Link href={`/spots/${spot.id}`} className="group block">
-      <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden hover:shadow-lg hover:border-gray-300 hover:-translate-y-0.5 transition-all duration-200">
+      <div className="bg-background rounded-2xl border border-border overflow-hidden hover:shadow-lg hover:border-primary/40 hover:-translate-y-0.5 transition-all duration-200">
 
         {/* 이미지 / 카테고리 배경 */}
         <div className="h-44 relative overflow-hidden">
@@ -58,14 +26,14 @@ export default function SpotCard({ spot }: { spot: WorkSpot }) {
           )}
 
           {/* 카테고리 배지 */}
-          <span className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm text-xs font-semibold px-2.5 py-1 rounded-full text-gray-700 shadow-sm">
+          <span className="absolute top-3 left-3 bg-background/90 backdrop-blur-sm text-xs font-semibold px-2.5 py-1 rounded-full text-foreground shadow-sm">
             {categoryLabel[spot.category]}
           </span>
 
           {/* 혼잡도 배지 */}
           {spot.congestion && (
             <span className={cn(
-              "absolute top-3 right-3 flex items-center gap-1.5 bg-white/90 backdrop-blur-sm text-xs font-semibold px-2.5 py-1 rounded-full shadow-sm",
+              "absolute top-3 right-3 flex items-center gap-1.5 bg-background/90 backdrop-blur-sm text-xs font-semibold px-2.5 py-1 rounded-full shadow-sm",
               congestionStyle[spot.congestion].text
             )}>
               <span className={cn("w-1.5 h-1.5 rounded-full", congestionStyle[spot.congestion].dot)} />
@@ -77,24 +45,24 @@ export default function SpotCard({ spot }: { spot: WorkSpot }) {
         {/* 정보 영역 */}
         <div className="p-4 space-y-3">
           <div>
-            <h3 className="font-bold text-gray-900 group-hover:text-sky-600 transition-colors leading-snug">
+            <h3 className="font-bold text-foreground group-hover:text-primary transition-colors leading-snug">
               {spot.name}
             </h3>
-            <p className="text-xs text-gray-400 mt-0.5 truncate">{spot.address}</p>
+            <p className="text-xs text-foreground/60 mt-0.5 truncate">{spot.address}</p>
           </div>
 
           {/* 편의시설 뱃지 */}
           <div className="flex items-center gap-1.5 flex-wrap">
-            <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", spot.noise !== "언급없음" ? noiseBadge[spot.noise] : "bg-gray-100 text-gray-400")}>
+            <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", spot.noise !== "언급없음" ? noiseBadge[spot.noise] : "bg-muted text-foreground/60")}>
               {noiseLabel(spot.noise)}
             </span>
             {spot.wifi.available === true && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 font-medium">
+              <span className="text-xs px-2 py-0.5 rounded-full bg-good/15 text-good font-medium">
                 WiFi
               </span>
             )}
             {spot.wifi.available === null && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-400 font-medium">
+              <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-foreground/60 font-medium">
                 WiFi 미확인
               </span>
             )}
@@ -104,23 +72,23 @@ export default function SpotCard({ spot }: { spot: WorkSpot }) {
               </span>
             )}
             {spot.power.level === null && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-400 font-medium">
+              <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-foreground/60 font-medium">
                 콘센트 미확인
               </span>
             )}
             {isBarrierFree(spot.barrierFree) && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-teal-100 text-teal-700 font-medium">
+              <span className="text-xs px-2 py-0.5 rounded-full bg-good/15 text-good font-medium">
                 무장애
               </span>
             )}
           </div>
 
           {/* 영업시간 + 태그 */}
-          <div className="flex items-center justify-between pt-1 border-t border-gray-50">
-            <span className="text-xs text-gray-400">{spot.openHours}</span>
+          <div className="flex items-center justify-between pt-1 border-t border-border">
+            <span className="text-xs text-foreground/60">{spot.openHours}</span>
             <div className="flex gap-1">
               {spot.tags.slice(0, 2).map((tag) => (
-                <span key={tag} className="text-xs text-gray-400 bg-gray-50 px-1.5 py-0.5 rounded">
+                <span key={tag} className="text-xs text-foreground/60 bg-muted px-1.5 py-0.5 rounded">
                   #{tag}
                 </span>
               ))}

@@ -22,18 +22,18 @@ const CRITERIA = [
 ] as const;
 
 function scoreColor(score: number) {
-  if (score >= 80) return { bar: "bg-green-500", text: "text-green-600", ring: "bg-green-50 border-green-200" };
-  if (score >= 60) return { bar: "bg-sky-500",   text: "text-sky-600",   ring: "bg-sky-50 border-sky-200" };
-  if (score >= 40) return { bar: "bg-yellow-400",text: "text-yellow-600",ring: "bg-yellow-50 border-yellow-200" };
-  return               { bar: "bg-red-400",    text: "text-red-500",   ring: "bg-red-50 border-red-200" };
+  if (score >= 80) return { bar: "bg-good",  text: "text-good",  ring: "bg-good/10 border-good/30" };
+  if (score >= 60) return { bar: "bg-primary", text: "text-primary", ring: "bg-primary/10 border-primary/30" };
+  if (score >= 40) return { bar: "bg-warn",  text: "text-warn",  ring: "bg-warn/10 border-warn/30" };
+  return               { bar: "bg-bad",   text: "text-bad",   ring: "bg-bad/10 border-bad/30" };
 }
 
 // 체크 항목은 확정 true/false 뿐 아니라 "미확인"(null)도 가질 수 있다 (예: wifi.available).
 // null을 false로 뭉개면 "확정된 없음"처럼 보이므로, 배지 아이콘/색을 3단계로 분리한다.
 function checkVisual(state: boolean | null) {
-  if (state === true) return { badge: "bg-sky-600 text-white", icon: "✓", text: "text-gray-700" };
-  if (state === false) return { badge: "bg-gray-100 text-gray-300", icon: "✗", text: "text-gray-400" };
-  return { badge: "bg-gray-50 text-gray-400 border border-gray-200", icon: "–", text: "text-gray-400 italic" };
+  if (state === true) return { badge: "bg-good text-on-good", icon: "✓", text: "text-foreground" };
+  if (state === false) return { badge: "bg-bad/15 text-bad", icon: "✗", text: "text-foreground/60" };
+  return { badge: "bg-muted text-foreground/60 border border-border", icon: "–", text: "text-foreground/60 italic" };
 }
 
 export default function WorkEnvScore({ spot }: { spot: WorkSpot }) {
@@ -50,20 +50,20 @@ export default function WorkEnvScore({ spot }: { spot: WorkSpot }) {
   };
 
   return (
-    <div className="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
-      <h2 className="text-sm font-bold text-gray-400 uppercase tracking-widest">작업 환경 점수</h2>
+    <div className="bg-background border border-border rounded-2xl p-5 space-y-4">
+      <h2 className="text-sm font-bold text-foreground/40 uppercase tracking-widest">작업 환경 점수</h2>
 
       {/* 점수 */}
       <div className={cn("flex items-center justify-between rounded-xl px-4 py-3 border", ring)}>
         <span className={cn("text-4xl font-bold", text)}>{score}</span>
         <div className="text-right">
           <p className={cn("text-lg font-bold", text)}>{label}</p>
-          <p className="text-xs text-gray-400">/ 90점</p>
+          <p className="text-xs text-foreground/40">/ 90점</p>
         </div>
       </div>
 
       {/* 점수 바 */}
-      <div className="w-full bg-gray-100 rounded-full h-2">
+      <div className="w-full bg-muted rounded-full h-2">
         <div
           className={cn("h-2 rounded-full transition-all duration-500", bar)}
           style={{ width: `${score}%` }}

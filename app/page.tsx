@@ -213,7 +213,7 @@ export default function HomePage() {
           <div className="flex flex-wrap justify-center gap-4">
             <Link
               href="/ai-curator"
-              className="inline-block px-8 py-4 bg-accent text-white rounded-xl font-semibold text-sm hover:opacity-90 transition-opacity"
+              className="inline-block px-8 py-4 bg-accent text-on-accent rounded-xl font-semibold text-sm hover:opacity-90 transition-opacity"
             >
               AI 동선 만들기
             </Link>
