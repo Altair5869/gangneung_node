@@ -12,9 +12,9 @@
   --color-foreground: #14100C;
   --color-muted: #F2EAD9;
   --color-border: #E6DCC6;
-  --color-good: #3D7A52;
-  --color-warn: #B8862E;
-  --color-bad: #B84A3E;
+  --color-good: #376E4A;
+  --color-warn: #815E20;
+  --color-bad: #A74338;
 }
 
 :root.dark {
@@ -26,7 +26,7 @@
   --color-border: #2C3E3B;
   --color-good: #5FBF7E;
   --color-warn: #D9A648;
-  --color-bad: #E27367;
+  --color-bad: #E47B70;
 }
 
 @theme inline {
