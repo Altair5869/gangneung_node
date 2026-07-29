@@ -15,10 +15,10 @@ export default async function SpotsPage() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      {/* 헤더 배너 */}
-      <section className="bg-gradient-to-r from-sky-700 via-blue-600 to-teal-600 py-12">
+      {/* 헤더 배너 — 라이트/다크 공용 짙은 톤 (홈페이지 히어로와 동일 패턴) */}
+      <section className="bg-[linear-gradient(135deg,var(--color-primary-dark),var(--color-hero-glow))] py-12">
         <div className="max-w-6xl mx-auto px-4">
-          <p className="text-sky-300 text-xs font-semibold tracking-widest uppercase mb-2">Workation Spots</p>
+          <p className="text-white/70 text-xs font-semibold tracking-widest uppercase mb-2">Workation Spots</p>
           <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">강릉 워크스팟</h1>
           <p className="text-white/70 text-sm">
             한국관광공사 공식 데이터 기반 —&nbsp;
