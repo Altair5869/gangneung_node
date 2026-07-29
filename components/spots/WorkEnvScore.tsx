@@ -31,7 +31,7 @@ function scoreColor(score: number) {
 // 체크 항목은 확정 true/false 뿐 아니라 "미확인"(null)도 가질 수 있다 (예: wifi.available).
 // null을 false로 뭉개면 "확정된 없음"처럼 보이므로, 배지 아이콘/색을 3단계로 분리한다.
 function checkVisual(state: boolean | null) {
-  if (state === true) return { badge: "bg-good text-white", icon: "✓", text: "text-foreground" };
+  if (state === true) return { badge: "bg-good text-on-good", icon: "✓", text: "text-foreground" };
   if (state === false) return { badge: "bg-bad/15 text-bad", icon: "✗", text: "text-foreground/60" };
   return { badge: "bg-muted text-foreground/60 border border-border", icon: "–", text: "text-foreground/60 italic" };
 }

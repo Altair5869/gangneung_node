@@ -205,7 +205,7 @@ export default function SpotsClient({ allSpots }: { allSpots: WorkSpot[] }) {
                   className={cn(
                     "px-2.5 py-1.5 text-xs rounded-lg border whitespace-nowrap transition-colors",
                     minScore === opt.value
-                      ? "bg-good text-white border-good"
+                      ? "bg-good text-on-good border-good"
                       : "bg-background text-foreground/70 border-border hover:border-foreground/40"
                   )}
                 >

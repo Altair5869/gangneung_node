@@ -78,7 +78,7 @@ export default async function SpotDetailPage({
             {categoryLabel[spot.category]}
           </span>
           {isBarrierFree(spot.barrierFree) && (
-            <span className="bg-good text-xs font-semibold px-3 py-1 rounded-full text-white shadow-sm">
+            <span className="bg-good text-xs font-semibold px-3 py-1 rounded-full text-on-good shadow-sm">
               무장애
             </span>
           )}
@@ -169,7 +169,7 @@ export default async function SpotDetailPage({
                         key={key}
                         className={cn(
                           "text-xs px-3 py-1 rounded-full font-semibold",
-                          available ? "bg-good text-white" : "bg-muted text-foreground/40 line-through"
+                          available ? "bg-good text-on-good" : "bg-muted text-foreground/40 line-through"
                         )}
                       >
                         {label}
