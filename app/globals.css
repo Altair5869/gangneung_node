@@ -12,6 +12,9 @@
   --color-foreground: #14100C;
   --color-muted: #F2EAD9;
   --color-border: #E6DCC6;
+  --color-good: #3D7A52;
+  --color-warn: #B8862E;
+  --color-bad: #B84A3E;
 }
 
 :root.dark {
@@ -21,6 +24,9 @@
   --color-foreground: #F3EEE3;
   --color-muted: #1C2B29;
   --color-border: #2C3E3B;
+  --color-good: #5FBF7E;
+  --color-warn: #D9A648;
+  --color-bad: #E27367;
 }
 
 @theme inline {
@@ -32,6 +38,9 @@
   --color-foreground: var(--color-foreground);
   --color-muted: var(--color-muted);
   --color-border: var(--color-border);
+  --color-good: var(--color-good);
+  --color-warn: var(--color-warn);
+  --color-bad: var(--color-bad);
   --font-sans: "Pretendard Variable", Pretendard, -apple-system, sans-serif;
 }
 
