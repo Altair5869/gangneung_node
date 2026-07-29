@@ -14,6 +14,8 @@
   --color-border: #E6DCC6;
   --color-good: #376E4A;
   --color-on-good: #FFFFFF;
+  --color-on-primary: #FFFFFF;
+  --color-on-accent: #FFFFFF;
   --color-warn: #815E20;
   --color-bad: #A74338;
 }
@@ -27,6 +29,8 @@
   --color-border: #2C3E3B;
   --color-good: #5FBF7E;
   --color-on-good: #081810;
+  --color-on-primary: #062420;
+  --color-on-accent: #2A1206;
   --color-warn: #D9A648;
   --color-bad: #E47B70;
 }
@@ -42,6 +46,8 @@
   --color-border: var(--color-border);
   --color-good: var(--color-good);
   --color-on-good: var(--color-on-good);
+  --color-on-primary: var(--color-on-primary);
+  --color-on-accent: var(--color-on-accent);
   --color-warn: var(--color-warn);
   --color-bad: var(--color-bad);
   --font-sans: "Pretendard Variable", Pretendard, -apple-system, sans-serif;

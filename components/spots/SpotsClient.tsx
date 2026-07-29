@@ -177,15 +177,15 @@ export default function SpotsClient({ allSpots }: { allSpots: WorkSpot[] }) {
             {/* 편의시설 토글 */}
             <div className="flex items-center gap-1.5">
               {[
-                { label: "WiFi", active: wifi, toggle: () => setWifi((v) => !v), color: "bg-primary border-primary" },
-                { label: "무장애", active: barrierFree, toggle: () => setBarrierFree((v) => !v), color: "bg-accent border-accent" },
-              ].map(({ label, active, toggle, color }) => (
+                { label: "WiFi", active: wifi, toggle: () => setWifi((v) => !v), color: "bg-primary border-primary", textOn: "text-on-primary" },
+                { label: "무장애", active: barrierFree, toggle: () => setBarrierFree((v) => !v), color: "bg-accent border-accent", textOn: "text-on-accent" },
+              ].map(({ label, active, toggle, color, textOn }) => (
                 <button
                   key={label}
                   onClick={toggle}
                   className={cn(
                     "px-3 py-1.5 text-xs rounded-lg border whitespace-nowrap transition-colors",
-                    active ? `${color} text-white` : "bg-background text-foreground/70 border-border hover:border-foreground/40"
+                    active ? `${color} ${textOn}` : "bg-background text-foreground/70 border-border hover:border-foreground/40"
                   )}
                 >
                   {label}
