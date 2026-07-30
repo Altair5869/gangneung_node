@@ -122,13 +122,13 @@ export default function RouteMap({ stops }: { stops: RouteStop[] }) {
       )}
 
       {status === "ready" && (
-        <div className="absolute bottom-3 left-3 bg-background/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow text-xs flex gap-3">
-          <span className="flex items-center gap-1.5 text-foreground">
-            <span className="w-3 h-3 rounded-full inline-block bg-primary" />
+        <div className="absolute bottom-3 left-3 bg-white/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow text-xs flex gap-3">
+          <span className="flex items-center gap-1.5 text-gray-900">
+            <span className="w-3 h-3 rounded-full inline-block" style={{ background: WORK_COLOR }} />
             워크스팟
           </span>
-          <span className="flex items-center gap-1.5 text-foreground">
-            <span className="w-3 h-3 rounded-full inline-block bg-accent" />
+          <span className="flex items-center gap-1.5 text-gray-900">
+            <span className="w-3 h-3 rounded-full inline-block" style={{ background: LIFE_COLOR }} />
             라이프스팟
           </span>
         </div>
