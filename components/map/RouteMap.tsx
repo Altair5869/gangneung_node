@@ -3,8 +3,8 @@
 import { useRef, useState, useEffect } from "react";
 import { RouteStop, isLifeSpot } from "@/types";
 
-const WORK_COLOR = "#0369a1";
-const LIFE_COLOR = "#0d9488";
+const WORK_COLOR = "#0F6B62";
+const LIFE_COLOR = "#B8511E";
 
 export default function RouteMap({ stops }: { stops: RouteStop[] }) {
   const mapRef = useRef<HTMLDivElement>(null);
@@ -65,7 +65,7 @@ export default function RouteMap({ stops }: { stops: RouteStop[] }) {
             map,
             path: linePath,
             strokeWeight: 3,
-            strokeColor: "#0369a1",
+            strokeColor: WORK_COLOR,
             strokeOpacity: 0.6,
             strokeStyle: "solid",
           });
@@ -107,27 +107,27 @@ export default function RouteMap({ stops }: { stops: RouteStop[] }) {
   }, []);
 
   return (
-    <div className="relative w-full rounded-2xl overflow-hidden border border-gray-200 shadow-sm" style={{ height: 300 }}>
+    <div className="relative w-full rounded-2xl overflow-hidden border border-border shadow-sm" style={{ height: 300 }}>
       <div ref={mapRef} style={{ width: "100%", height: "100%" }} />
 
       {status === "loading" && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
-          <p className="text-gray-400 text-sm">지도 불러오는 중...</p>
+        <div className="absolute inset-0 flex items-center justify-center bg-muted">
+          <p className="text-foreground/60 text-sm">지도 불러오는 중...</p>
         </div>
       )}
       {status === "error" && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
-          <p className="text-gray-400 text-sm">지도를 불러올 수 없습니다</p>
+        <div className="absolute inset-0 flex items-center justify-center bg-muted">
+          <p className="text-foreground/60 text-sm">지도를 불러올 수 없습니다</p>
         </div>
       )}
 
       {status === "ready" && (
         <div className="absolute bottom-3 left-3 bg-white/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow text-xs flex gap-3">
-          <span className="flex items-center gap-1.5">
+          <span className="flex items-center gap-1.5 text-gray-900">
             <span className="w-3 h-3 rounded-full inline-block" style={{ background: WORK_COLOR }} />
             워크스팟
           </span>
-          <span className="flex items-center gap-1.5">
+          <span className="flex items-center gap-1.5 text-gray-900">
             <span className="w-3 h-3 rounded-full inline-block" style={{ background: LIFE_COLOR }} />
             라이프스팟
           </span>
