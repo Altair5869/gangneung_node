@@ -2,18 +2,8 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { noiseLabel, congestionLabel, cn, isBarrierFree } from "@/lib/utils";
 import WorkEnvScore from "@/components/spots/WorkEnvScore";
-import { WorkSpot } from "@/types";
 import { categoryLabel, categoryGradient, noiseBadge, congestionStyle } from "@/lib/spot-visuals";
-
-async function getSpot(id: string): Promise<WorkSpot | null> {
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000"}/api/spots/${id}`,
-    { cache: "no-store" }
-  );
-  if (!res.ok) return null;
-  const data = await res.json() as { spot: WorkSpot };
-  return data.spot ?? null;
-}
+import { getSpotById } from "@/lib/spot-detail";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +13,8 @@ export default async function SpotDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const spot = await getSpot(id);
+  // /api/spots/[id] 라우트와 동일한 조회·병합 함수를 직접 호출한다(셀프 fetch 제거).
+  const spot = await getSpotById(id);
   if (!spot) notFound();
 
   const gradient = categoryGradient[spot.category] ?? categoryGradient.other;
