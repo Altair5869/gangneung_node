@@ -38,6 +38,10 @@ yarn-error.log*
 
 # harness 중간 산출물 (감사 추적용 로컬 보관, 커밋 대상 아님)
 /.claude/_workspace/
+/.claude/_workspace_*/
+
+# 로컬 git worktree 체크아웃 (중첩 git 저장소라 커밋 대상 아님)
+/.claude/worktrees/
 
 # typescript
 *.tsbuildinfo

@@ -1,0 +1,185 @@
+{
+  "version": 1,
+  "skills": {
+    "banner-design": {
+      "source": "nextlevelbuilder/ui-ux-pro-max-skill",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/banner-design/SKILL.md",
+      "computedHash": "82c86217829268afd1f86e89390270e35cb3a1761854a0bbe6180929614ae022"
+    },
+    "brainstorming": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "skillPath": "skills/brainstorming/SKILL.md",
+      "computedHash": "225b53fce53d627d3a1e94bfea84060ccdbf11a58a2d5cf11eefef89d598020e"
+    },
+    "brand": {
+      "source": "nextlevelbuilder/ui-ux-pro-max-skill",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/brand/SKILL.md",
+      "computedHash": "3c7acb846082f9e4cc873f1cf85bd57ade027206e18c7c050797f815e3a56af7"
+    },
+    "cavecrew": {
+      "source": "juliusbrussee/caveman",
+      "sourceType": "github",
+      "skillPath": "skills/cavecrew/SKILL.md",
+      "computedHash": "c5527c994fbd4c22b36714e3b124a0f167a533d114ab164fb1d35e2123533917"
+    },
+    "caveman": {
+      "source": "juliusbrussee/caveman",
+      "sourceType": "github",
+      "skillPath": "skills/caveman/SKILL.md",
+      "computedHash": "d18cdf73a5f5c496d681a43a6846336b110223bdffa6817b8992529c57f1a815"
+    },
+    "caveman-commit": {
+      "source": "juliusbrussee/caveman",
+      "sourceType": "github",
+      "skillPath": "skills/caveman-commit/SKILL.md",
+      "computedHash": "790a4eeace0be35c6691faf923518ba5bd50f1f1305d1101d09dd4971be94e00"
+    },
+    "caveman-compress": {
+      "source": "juliusbrussee/caveman",
+      "sourceType": "github",
+      "skillPath": "skills/caveman-compress/SKILL.md",
+      "computedHash": "84517cd4cf7a49d8d2bc1baf00f61bc359306c6ad9389756b6937eff958bd374"
+    },
+    "caveman-help": {
+      "source": "juliusbrussee/caveman",
+      "sourceType": "github",
+      "skillPath": "skills/caveman-help/SKILL.md",
+      "computedHash": "dd85267e76baad76995157e7b9f762dfa557cd58951ee92af0c283f48aa26537"
+    },
+    "caveman-review": {
+      "source": "juliusbrussee/caveman",
+      "sourceType": "github",
+      "skillPath": "skills/caveman-review/SKILL.md",
+      "computedHash": "fb7214a1c5793bae6ba8b1be4329e2e6f40dbec6dd911dfb335ad29f09c316a1"
+    },
+    "caveman-stats": {
+      "source": "juliusbrussee/caveman",
+      "sourceType": "github",
+      "skillPath": "skills/caveman-stats/SKILL.md",
+      "computedHash": "47ce2de3d6cb39a75047b5c962e4eb3da15594e7397c94103e9a104d42626553"
+    },
+    "code-review-skill": {
+      "source": "awesome-skills/code-review-skill",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "56ffac36c171dd1289ff9d732c5f0249180ed0c905a5fc355257e92703bc4c38"
+    },
+    "design": {
+      "source": "nextlevelbuilder/ui-ux-pro-max-skill",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/design/SKILL.md",
+      "computedHash": "4e0412d29df74e6153e4944b367459a28cf52e3e81c7f45c1ecf4c2a8b21907c"
+    },
+    "design-system": {
+      "source": "nextlevelbuilder/ui-ux-pro-max-skill",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/design-system/SKILL.md",
+      "computedHash": "a05715299135276628f53519484e1267ec8ad111e6355a09c2da1cf66aee2cc3"
+    },
+    "dispatching-parallel-agents": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "skillPath": "skills/dispatching-parallel-agents/SKILL.md",
+      "computedHash": "b011107f17188e0b2898bb1856b5bac8b49537cc86e737c82126558a235bd62a"
+    },
+    "executing-plans": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "skillPath": "skills/executing-plans/SKILL.md",
+      "computedHash": "78a07800ee99a5861ae10be59d79fad085fdca10444e8aaeb2691597e357cff8"
+    },
+    "finishing-a-development-branch": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "skillPath": "skills/finishing-a-development-branch/SKILL.md",
+      "computedHash": "a2afe045ea677114a89854f296ae57f8d34eb84864daa7b08ea9434acded724d"
+    },
+    "karpathy-guidelines": {
+      "source": "forrestchang/andrej-karpathy-skills",
+      "sourceType": "github",
+      "skillPath": "skills/karpathy-guidelines/SKILL.md",
+      "computedHash": "41e8ca055bbde13d240776a14a076a59614057200340c243130a76ba4e64cac8"
+    },
+    "receiving-code-review": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "skillPath": "skills/receiving-code-review/SKILL.md",
+      "computedHash": "59361179fc9225173e0c145ffd9bafbf9fdbf8b43ce3dc308497a0b4f83a6063"
+    },
+    "requesting-code-review": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "skillPath": "skills/requesting-code-review/SKILL.md",
+      "computedHash": "2304d2073c62eab163e04de40fe775e3d87c69c0df40cd4dc953fdb8e3205b81"
+    },
+    "slides": {
+      "source": "nextlevelbuilder/ui-ux-pro-max-skill",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/slides/SKILL.md",
+      "computedHash": "c72a8bcd2ee98a7caab8f00a816c7e7ccfa46bba6682539db2186e71220155f1"
+    },
+    "subagent-driven-development": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "skillPath": "skills/subagent-driven-development/SKILL.md",
+      "computedHash": "f32739563160d3612fe2febd0dad4a9cc8a6d1ea7dfcda59f245b3a4b968f7cf"
+    },
+    "systematic-debugging": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "skillPath": "skills/systematic-debugging/SKILL.md",
+      "computedHash": "a2750dfbaed1690da73b120254892c4f926b4576cb82eb16fc877783941fe39b"
+    },
+    "test-driven-development": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "skillPath": "skills/test-driven-development/SKILL.md",
+      "computedHash": "a4126a9c5f17be3c228aa9e5755898ade283448b86099f56f40852e8c14532be"
+    },
+    "ui-styling": {
+      "source": "nextlevelbuilder/ui-ux-pro-max-skill",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/ui-styling/SKILL.md",
+      "computedHash": "360a6007fae358c852fe0ba5efc0f69deee4768a00b9bdc8cd393a3f8491626a"
+    },
+    "ui-ux-pro-max": {
+      "source": "nextlevelbuilder/ui-ux-pro-max-skill",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/ui-ux-pro-max/SKILL.md",
+      "computedHash": "f0916ca326ad6dbde1d0770b46956a213406b8ea4a19ed931bb4f2dc7d04c16d"
+    },
+    "using-git-worktrees": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "skillPath": "skills/using-git-worktrees/SKILL.md",
+      "computedHash": "48c8a1040e378e0cb7208107294e3afa9067b9370c3f33b49a443eb6b7528b0d"
+    },
+    "using-superpowers": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "skillPath": "skills/using-superpowers/SKILL.md",
+      "computedHash": "a77a803b7fc1a19c87605cf7a5ef318c5adc233de10b9ebeecb2ee2609f5454e"
+    },
+    "verification-before-completion": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "skillPath": "skills/verification-before-completion/SKILL.md",
+      "computedHash": "b529822bdac4b197b180fe12225cff86b930b65910435103c10622df7f041651"
+    },
+    "writing-plans": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "skillPath": "skills/writing-plans/SKILL.md",
+      "computedHash": "a8a8b0d07b744173079b25d26c6a189a0b5e7ddd80444ce92055b974dab7352b"
+    },
+    "writing-skills": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "skillPath": "skills/writing-skills/SKILL.md",
+      "computedHash": "19a1223c9c174f1b4daf807417f13d53886cdc79feeb05c978129a17592f51d7"
+    }
+  }
+}
