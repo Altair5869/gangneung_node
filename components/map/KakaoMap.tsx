@@ -29,7 +29,9 @@ function isVisible(spot: WorkSpot, filters: Filters): boolean {
 
 export default function KakaoMap({ spots }: { spots: WorkSpot[] }) {
   const mapRef = useRef<HTMLDivElement>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mapObj = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const overlaysRef = useRef<Array<{ overlay: any; spot: WorkSpot }>>([]);
 
   const [selectedSpot, setSelectedSpot] = useState<WorkSpot | null>(null);
@@ -153,18 +155,18 @@ export default function KakaoMap({ spots }: { spots: WorkSpot[] }) {
 
       {/* 로딩 오버레이 */}
       {status === "loading" && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gray-100 z-20">
-          <p className="text-gray-500 text-sm">지도 불러오는 중...</p>
+        <div className="absolute inset-0 flex items-center justify-center bg-muted z-20">
+          <p className="text-foreground/60 text-sm">지도 불러오는 중...</p>
         </div>
       )}
 
       {/* 에러 오버레이 */}
       {status === "error" && (
-        <div className="absolute inset-0 flex items-center justify-center bg-red-50 z-20">
-          <div className="text-center p-6 bg-white rounded-2xl shadow border border-red-100">
-            <p className="font-bold text-red-600 mb-2">지도 로딩 실패</p>
-            <p className="text-sm text-red-500 mb-4">{errorMsg || "알 수 없는 오류"}</p>
-            <p className="text-xs text-gray-400">
+        <div className="absolute inset-0 flex items-center justify-center bg-bad/10 z-20">
+          <div className="text-center p-6 bg-background rounded-2xl shadow border border-bad/30">
+            <p className="font-bold text-bad mb-2">지도 로딩 실패</p>
+            <p className="text-sm text-bad mb-4">{errorMsg || "알 수 없는 오류"}</p>
+            <p className="text-xs text-foreground/60">
               카카오맵 API 키와 도메인 등록을 확인해주세요<br />
               (developers.kakao.com → 앱 → 플랫폼 → Web)
             </p>
@@ -174,14 +176,14 @@ export default function KakaoMap({ spots }: { spots: WorkSpot[] }) {
 
       {/* 필터 패널 */}
       {status === "ready" && (
-        <div className="absolute top-4 left-4 z-10 bg-white rounded-2xl shadow-lg border border-gray-100 p-3 space-y-2 min-w-[200px]">
+        <div className="absolute top-4 left-4 z-10 bg-background rounded-2xl shadow-lg border border-border p-3 space-y-2 min-w-[200px]">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-gray-700">필터</span>
-            <span className="text-xs text-gray-400">{visibleCount}곳</span>
+            <span className="text-xs font-semibold text-foreground">필터</span>
+            <span className="text-xs text-foreground/60">{visibleCount}곳</span>
           </div>
 
           <div className="space-y-1">
-            <p className="text-xs text-gray-400">소음도</p>
+            <p className="text-xs text-foreground/60">소음도</p>
             <div className="flex gap-1">
               {[
                 { value: "언급됨-조용함", label: "조용 언급" },
@@ -193,8 +195,8 @@ export default function KakaoMap({ spots }: { spots: WorkSpot[] }) {
                   className={cn(
                     "flex-1 py-1 text-xs rounded-lg border transition-colors",
                     filters.noise === opt.value
-                      ? "bg-gray-900 text-white border-gray-900"
-                      : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"
+                      ? "bg-primary text-on-primary border-primary"
+                      : "bg-background text-foreground/70 border-border hover:border-foreground/40"
                   )}
                 >
                   {opt.label}
@@ -209,8 +211,8 @@ export default function KakaoMap({ spots }: { spots: WorkSpot[] }) {
               className={cn(
                 "flex-1 py-1.5 text-xs rounded-lg border font-medium transition-colors",
                 filters.wifi
-                  ? "bg-blue-600 text-white border-blue-600"
-                  : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"
+                  ? "bg-primary text-on-primary border-primary"
+                  : "bg-background text-foreground/70 border-border hover:border-foreground/40"
               )}
             >
               WiFi
@@ -220,16 +222,16 @@ export default function KakaoMap({ spots }: { spots: WorkSpot[] }) {
               className={cn(
                 "flex-1 py-1.5 text-xs rounded-lg border font-medium transition-colors",
                 filters.power
-                  ? "bg-purple-600 text-white border-purple-600"
-                  : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"
+                  ? "bg-accent text-on-accent border-accent"
+                  : "bg-background text-foreground/70 border-border hover:border-foreground/40"
               )}
             >
               콘센트
             </button>
           </div>
 
-          <div className="border-t border-gray-100 pt-2 space-y-1">
-            <p className="text-xs text-gray-400">혼잡도</p>
+          <div className="border-t border-border pt-2 space-y-1">
+            <p className="text-xs text-foreground/60">혼잡도</p>
             {[
               { color: "bg-green-400", label: "여유" },
               { color: "bg-yellow-400", label: "보통" },
@@ -238,7 +240,7 @@ export default function KakaoMap({ spots }: { spots: WorkSpot[] }) {
             ].map((item) => (
               <div key={item.label} className="flex items-center gap-1.5">
                 <span className={cn("w-2 h-2 rounded-full", item.color)} />
-                <span className="text-xs text-gray-500">{item.label}</span>
+                <span className="text-xs text-foreground/70">{item.label}</span>
               </div>
             ))}
           </div>
