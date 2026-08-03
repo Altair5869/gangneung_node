@@ -1,11 +1,14 @@
-import { WorkSpot } from "@/types";
+import { WorkSpot, LifeSpot } from "@/types";
 
-export const categoryLabel: Record<WorkSpot["category"], string> = {
+export const categoryLabel: Record<WorkSpot["category"] | LifeSpot["category"], string> = {
   cafe: "카페",
   coworking: "코워킹",
   library: "도서관",
   hotel: "호텔",
   other: "기타",
+  attraction: "관광지",
+  stay: "숙박",
+  food: "음식점",
 };
 
 export const categoryGradient: Record<WorkSpot["category"], string> = {
