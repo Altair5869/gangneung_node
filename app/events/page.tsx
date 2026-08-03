@@ -51,9 +51,9 @@ export default async function EventsPage() {
     <div className="flex flex-col min-h-screen">
       <section className="bg-gradient-to-r from-rose-600 via-pink-500 to-fuchsia-500 py-12">
         <div className="max-w-6xl mx-auto px-4">
-          <p className="text-rose-200 text-xs font-semibold tracking-widest uppercase mb-2">Events</p>
+          <p className="text-white/70 text-xs font-semibold tracking-widest uppercase mb-2">Events</p>
           <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">강릉 행사 · 축제</h1>
-          <p className="text-white/80 text-sm">
+          <p className="text-white/70 text-sm">
             한국관광공사 공식 OpenAPI 기반 강릉 지역 행사 및 축제 {events.length}건
           </p>
         </div>
@@ -61,7 +61,7 @@ export default async function EventsPage() {
 
       <div className="max-w-6xl mx-auto px-4 py-10 w-full flex-1">
         {events.length === 0 ? (
-          <div className="text-center py-20 text-gray-400">
+          <div className="text-center py-20 text-foreground/60">
             <p className="text-lg font-semibold mb-2">현재 등록된 행사가 없습니다</p>
             <p className="text-sm">곧 강릉의 새로운 행사 정보가 업데이트됩니다.</p>
           </div>
@@ -69,7 +69,7 @@ export default async function EventsPage() {
           <>
             {ongoing.length > 0 && (
               <div className="mb-10">
-                <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                <h2 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-rose-500 inline-block" />
                   진행 중
                 </h2>
@@ -83,7 +83,7 @@ export default async function EventsPage() {
 
             {upcoming.length > 0 && (
               <div>
-                <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                <h2 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-fuchsia-400 inline-block" />
                   예정된 행사
                 </h2>
@@ -97,7 +97,7 @@ export default async function EventsPage() {
           </>
         )}
 
-        <p className="mt-10 text-center text-xs text-gray-400">
+        <p className="mt-10 text-center text-xs text-foreground/60">
           본 데이터는 한국관광공사 공공 OpenAPI (KorService2 · searchFestival2 · contentTypeId=15)를 활용합니다.
         </p>
       </div>
@@ -107,7 +107,7 @@ export default async function EventsPage() {
 
 function EventCard({ event, status }: { event: EventSpot; status: "ongoing" | "upcoming" }) {
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden hover:shadow-md hover:border-rose-200 hover:-translate-y-0.5 transition-all duration-200 flex flex-col h-full">
+    <div className="bg-background rounded-2xl border border-border overflow-hidden hover:shadow-md hover:border-rose-200 hover:-translate-y-0.5 transition-all duration-200 flex flex-col h-full">
       {event.imageUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={event.imageUrl} alt={event.name} className="w-full h-44 object-cover" />
@@ -124,14 +124,14 @@ function EventCard({ event, status }: { event: EventSpot; status: "ongoing" | "u
             <span className="text-xs px-2 py-0.5 rounded-full bg-fuchsia-50 text-fuchsia-600 font-semibold">예정</span>
           )}
         </div>
-        <h3 className="font-bold text-gray-900 mb-1 leading-tight line-clamp-2">{event.name}</h3>
+        <h3 className="font-bold text-foreground mb-1 leading-tight line-clamp-2">{event.name}</h3>
         {event.eventPlace && (
-          <p className="text-xs text-gray-500 truncate mb-1">{event.eventPlace}</p>
+          <p className="text-xs text-foreground/70 truncate mb-1">{event.eventPlace}</p>
         )}
-        <p className="text-xs text-gray-400 truncate mb-3">{event.address || "주소 정보 없음"}</p>
+        <p className="text-xs text-foreground/60 truncate mb-3">{event.address || "주소 정보 없음"}</p>
         <div className="mt-auto">
           {(event.startDate || event.endDate) && (
-            <p className="text-xs text-gray-500 font-medium">
+            <p className="text-xs text-foreground/70 font-medium">
               {formatDate(event.startDate)}
               {event.endDate && event.endDate !== event.startDate && (
                 <> ~ {formatDate(event.endDate)}</>
