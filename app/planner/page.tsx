@@ -54,7 +54,7 @@ function PlannerContent() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      <section className="bg-primary-dark py-12">
+      <section className="bg-[linear-gradient(135deg,var(--color-primary-dark),var(--color-hero-glow))] py-12">
         <div className="max-w-3xl mx-auto px-4">
           <p className="text-white/70 text-xs font-semibold tracking-widest uppercase mb-2">Planner</p>
           <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">워케이션 플래너</h1>
@@ -143,7 +143,7 @@ function PlanCard({
               "px-3 py-1.5 rounded-lg text-xs font-semibold transition-all",
               copied
                 ? "bg-good/15 text-good"
-                : "bg-muted text-foreground/70 hover:bg-muted/70"
+                : "bg-muted text-foreground/70 hover:bg-border"
             )}
           >
             {copied ? "복사됨" : "공유 링크"}
@@ -240,7 +240,7 @@ function SharedPlanView({ plan }: { plan: SavedPlan | null }) {
 
   return (
     <div className="flex flex-col min-h-screen">
-      <section className="bg-primary-dark py-12">
+      <section className="bg-[linear-gradient(135deg,var(--color-primary-dark),var(--color-hero-glow))] py-12">
         <div className="max-w-3xl mx-auto px-4">
           <p className="text-white/70 text-xs font-semibold tracking-widest uppercase mb-2">공유된 동선</p>
           <h1 className="text-2xl sm:text-3xl font-bold text-white mb-1">{plan.name}</h1>
@@ -249,7 +249,7 @@ function SharedPlanView({ plan }: { plan: SavedPlan | null }) {
       </section>
 
       <div className="max-w-3xl mx-auto px-4 py-10 w-full space-y-6">
-        <div className="bg-primary-dark rounded-2xl p-6 text-white">
+        <div className="bg-[linear-gradient(135deg,var(--color-primary-dark),var(--color-hero-glow))] rounded-2xl p-6 text-white shadow-xl">
           <p className="text-xs font-semibold text-white/70 uppercase tracking-widest mb-3">AI 추천 동선</p>
           <p className="text-sm leading-relaxed">{plan.route.description}</p>
         </div>
