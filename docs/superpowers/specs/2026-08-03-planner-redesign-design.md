@@ -23,7 +23,7 @@
 
 | 현재 (하드코딩) | 교체 후 (토큰) | 비고 |
 |---|---|---|
-| 히어로 배경 `bg-gradient-to-r from-gray-800 via-gray-700 to-gray-800` (`:62`, `:246` 2곳) | `bg-primary-dark`(모드 불변) | 홈페이지 히어로와 동일 패턴 |
+| 히어로 배경 `bg-gradient-to-r from-gray-800 via-gray-700 to-gray-800` (`:62`, `:246` 2곳) | `bg-[linear-gradient(135deg,var(--color-primary-dark),var(--color-hero-glow))]`(모드 불변) | 홈페이지 히어로와 동일 패턴 — **정정(2026-08-03 최종 리뷰)**: 최초 작성 시 값 컬럼에 `bg-primary-dark`만 적었으나 이는 비고("홈페이지 히어로와 동일 패턴")와 모순. 홈페이지·AI큐레이터·스팟 히어로는 전부 두 색 그라디언트를 씀. 구현 단계에서 이 모순을 못 잡고 값 컬럼 그대로 따라가 리뷰에서 재작업 발생 — 후속 라운드는 값 컬럼을 최종 기준으로 삼을 것 |
 | 히어로 라벨/서브텍스트 `text-gray-400` | `text-white/70` | 히어로는 모드 불변 짙은 배경이므로 `text-white` 계열 유지 |
 | 히어로 타이틀 `text-white` | `text-white` | 변경 없음 |
 | 플랜 카드 컨테이너 `bg-white border-gray-200` (`:117`) | `bg-background border-border` | |
@@ -31,7 +31,7 @@
 | 카드 제목 `text-gray-900` | `text-foreground` | |
 | 본문 보조 텍스트 `text-gray-400`(×11)/`text-gray-500`/`text-gray-600` | `text-foreground/60` | AA 대비 확보 — `text-foreground/40`나 `/50`은 쓰지 않는다(`d60ba07`, `/map` 라운드에서 반복 확인된 미달 값) |
 | "복사됨" 배지 `bg-green-100 text-green-700` | `bg-good/15 text-good` | |
-| 링크 버튼(기본) `bg-gray-100 text-gray-600 hover:bg-gray-200` | `bg-muted text-foreground/70 hover:bg-muted/70` | |
+| 링크 버튼(기본) `bg-gray-100 text-gray-600 hover:bg-gray-200` | `bg-muted text-foreground/70 hover:bg-border` | **정정(2026-08-03 최종 리뷰)**: 최초 값 `hover:bg-muted/70`은 기본 `bg-muted`보다 더 옅어져 호버가 오히려 "비활성화"처럼 보이고, 카드 헤더 자체가 호버 시 `bg-muted`로 바뀌어서 버튼이 배경에 묻히는 문제 발생. `bg-muted`보다 어두운(다크모드에선 밝은) `hover:bg-border`로 정정 |
 | 삭제 버튼 `bg-red-50 text-red-500 hover:bg-red-100` | `bg-bad/15 text-bad hover:bg-bad/25` | |
 | 펼침 화살표 `text-gray-400` | `text-foreground/60` | |
 | 펼침 상세 구분선 `border-gray-100` | `border-border` | |
@@ -41,7 +41,7 @@
 | 스팟 행 이름 `text-gray-900` | `text-foreground` | |
 | 스팟 행 주소/카테고리뱃지/혼잡도 `text-gray-400`, `bg-gray-100 text-gray-500` | `text-foreground/60`, `bg-muted text-foreground/60` | |
 | CTA 버튼(빈 상태·공유뷰 저장) `bg-sky-700 hover:bg-sky-600 text-white` | `bg-primary text-on-primary hover:opacity-90` | |
-| 공유뷰 설명 카드 `bg-gradient-to-br from-sky-700 to-teal-600` | `bg-primary-dark`(모드 불변) | 히어로와 통일 — AI큐레이터 라운드에서 "브랜드 강조 카드는 accent 아닌 primary-dark+hero-glow 모드불변 조합" 교훈 재적용 |
+| 공유뷰 설명 카드 `bg-gradient-to-br from-sky-700 to-teal-600` | `bg-[linear-gradient(135deg,var(--color-primary-dark),var(--color-hero-glow))]`(모드 불변) + `shadow-xl` | 히어로와 통일 — AI큐레이터 라운드에서 "브랜드 강조 카드는 accent 아닌 primary-dark+hero-glow 모드불변 조합" 교훈 재적용. **정정(2026-08-03 최종 리뷰)**: 위 히어로와 동일한 이유로 값 컬럼을 그라디언트로 정정, `app/ai-curator/page.tsx`의 동일 카드와 시각적으로 통일하기 위해 `shadow-xl`도 추가 |
 | 공유뷰 설명 카드 라벨 `text-sky-300` | `text-white/70` | |
 | 공유뷰 팁 박스 | 위 워케이션 팁 박스와 동일 매핑(`bg-primary/10` 등) | |
 | 공유뷰 팁 번호원 `bg-sky-700` | `bg-primary text-on-primary` | |
