@@ -46,11 +46,11 @@ export default function MapSpotCard({
       </div>
 
       <div className="flex items-center gap-2 px-4 pb-3 flex-wrap">
-        <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", spot.noise !== "언급없음" ? noiseBadge[spot.noise] : "bg-muted text-foreground/50")}>
+        <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", spot.noise !== "언급없음" ? noiseBadge[spot.noise] : "bg-muted text-foreground/60")}>
           {noiseLabel(spot.noise)}
         </span>
         {spot.wifi.available === true && (
-          <span className="text-xs px-2 py-0.5 rounded-full bg-primary/15 text-primary font-medium">
+          <span className="text-xs px-2 py-0.5 rounded-full bg-good/15 text-good font-medium">
             WiFi
           </span>
         )}
