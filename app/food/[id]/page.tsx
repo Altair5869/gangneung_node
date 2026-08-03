@@ -96,7 +96,7 @@ export default async function FoodDetailPage({
                 href={kakaoMapUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="block w-full text-center bg-yellow-400 text-foreground py-3.5 rounded-2xl text-sm font-bold hover:bg-yellow-300 transition-colors shadow-sm"
+                className="block w-full text-center bg-yellow-400 text-gray-900 py-3.5 rounded-2xl text-sm font-bold hover:bg-yellow-300 transition-colors shadow-sm"
               >
                 카카오맵에서 보기
               </a>
