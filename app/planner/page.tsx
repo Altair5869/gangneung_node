@@ -6,16 +6,11 @@ import { useSearchParams } from "next/navigation";
 import { RouteStop, isLifeSpot, WorkSpot } from "@/types";
 import { SavedPlan, getPlans, savePlan, deletePlan, encodePlan, decodePlan } from "@/lib/planner-storage";
 import { cn, congestionLabel } from "@/lib/utils";
-
-const categoryLabel: Record<string, string> = {
-  cafe: "카페", coworking: "코워킹", library: "도서관",
-  hotel: "호텔", other: "기타", attraction: "관광지",
-  stay: "숙박", food: "음식점",
-};
+import { categoryLabel } from "@/lib/spot-visuals";
 
 export default function PlannerPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-gray-400 text-sm">불러오는 중...</div>}>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-foreground/60 text-sm">불러오는 중...</div>}>
       <PlannerContent />
     </Suspense>
   );
@@ -59,22 +54,22 @@ function PlannerContent() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      <section className="bg-gradient-to-r from-gray-800 via-gray-700 to-gray-800 py-12">
+      <section className="bg-primary-dark py-12">
         <div className="max-w-3xl mx-auto px-4">
-          <p className="text-gray-400 text-xs font-semibold tracking-widest uppercase mb-2">Planner</p>
+          <p className="text-white/70 text-xs font-semibold tracking-widest uppercase mb-2">Planner</p>
           <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">워케이션 플래너</h1>
-          <p className="text-gray-400 text-sm">AI 큐레이터에서 저장한 동선을 관리하고 공유하세요.</p>
+          <p className="text-white/70 text-sm">AI 큐레이터에서 저장한 동선을 관리하고 공유하세요.</p>
         </div>
       </section>
 
       <div className="max-w-3xl mx-auto px-4 py-10 w-full flex-1">
         {plans.length === 0 ? (
           <div className="text-center py-20">
-            <p className="text-gray-400 text-lg font-semibold mb-2">저장된 동선이 없습니다</p>
-            <p className="text-gray-400 text-sm mb-8">AI 큐레이터에서 마음에 드는 동선을 저장해보세요.</p>
+            <p className="text-foreground/60 text-lg font-semibold mb-2">저장된 동선이 없습니다</p>
+            <p className="text-foreground/60 text-sm mb-8">AI 큐레이터에서 마음에 드는 동선을 저장해보세요.</p>
             <Link
               href="/ai-curator"
-              className="inline-block px-6 py-3 bg-sky-700 text-white rounded-xl text-sm font-semibold hover:bg-sky-600 transition-colors"
+              className="inline-block px-6 py-3 bg-primary text-on-primary rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity"
             >
               AI 동선 만들러 가기
             </Link>
@@ -114,9 +109,9 @@ function PlanCard({
   });
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+    <div className="bg-background rounded-2xl border border-border overflow-hidden">
       <div
-        className="p-5 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors"
+        className="p-5 flex items-center justify-between cursor-pointer hover:bg-muted transition-colors"
         onClick={onToggle}
         role="button"
         tabIndex={0}
@@ -136,8 +131,8 @@ function PlanCard({
         }}
       >
         <div className="flex-1 min-w-0">
-          <h3 className="font-bold text-gray-900 truncate">{plan.name}</h3>
-          <p className="text-xs text-gray-400 mt-0.5">
+          <h3 className="font-bold text-foreground truncate">{plan.name}</h3>
+          <p className="text-xs text-foreground/60 mt-0.5">
             {savedDate} · {plan.route.spots.length}개 장소 · {plan.route.totalDuration}시간
           </p>
         </div>
@@ -147,38 +142,38 @@ function PlanCard({
             className={cn(
               "px-3 py-1.5 rounded-lg text-xs font-semibold transition-all",
               copied
-                ? "bg-green-100 text-green-700"
-                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                ? "bg-good/15 text-good"
+                : "bg-muted text-foreground/70 hover:bg-muted/70"
             )}
           >
             {copied ? "복사됨" : "공유 링크"}
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); onDelete(); }}
-            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-50 text-red-500 hover:bg-red-100 transition-colors"
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-bad/15 text-bad hover:bg-bad/25 transition-colors"
           >
             삭제
           </button>
-          <span className={cn("text-gray-400 text-sm transition-transform", isExpanded ? "rotate-180" : "")}>
+          <span className={cn("text-foreground/60 text-sm transition-transform", isExpanded ? "rotate-180" : "")}>
             ▼
           </span>
         </div>
       </div>
 
       {isExpanded && (
-        <div className="border-t border-gray-100 p-5 space-y-4">
-          <p className="text-sm text-gray-600 leading-relaxed">{plan.route.description}</p>
+        <div className="border-t border-border p-5 space-y-4">
+          <p className="text-sm text-foreground/70 leading-relaxed">{plan.route.description}</p>
           <div className="space-y-2">
             {plan.route.spots.map((spot, i) => (
               <SpotRow key={spot.id} spot={spot} index={i} />
             ))}
           </div>
           {plan.route.tips.length > 0 && (
-            <div className="bg-sky-50 border border-sky-100 rounded-xl p-4">
-              <p className="text-xs font-bold text-sky-800 mb-2">워케이션 팁</p>
+            <div className="bg-primary/10 border border-primary/20 rounded-xl p-4">
+              <p className="text-xs font-bold text-primary mb-2">워케이션 팁</p>
               <ul className="space-y-1">
                 {plan.route.tips.map((tip, i) => (
-                  <li key={i} className="text-xs text-sky-700">{i + 1}. {tip}</li>
+                  <li key={i} className="text-xs text-primary">{i + 1}. {tip}</li>
                 ))}
               </ul>
             </div>
@@ -194,20 +189,22 @@ function SpotRow({ spot, index }: { spot: RouteStop; index: number }) {
   return (
     <div className="flex items-center gap-3 py-2">
       <div
-        className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-sm"
-        style={{ background: life ? "#0d9488" : "#0369a1" }}
+        className={cn(
+          "flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shadow-sm",
+          life ? "bg-accent text-on-accent" : "bg-primary text-on-primary"
+        )}
       >
         {index + 1}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-gray-900 truncate">{spot.name}</p>
-        <p className="text-xs text-gray-400 truncate">{spot.address}</p>
+        <p className="text-sm font-semibold text-foreground truncate">{spot.name}</p>
+        <p className="text-xs text-foreground/60 truncate">{spot.address}</p>
       </div>
-      <span className="flex-shrink-0 text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 font-medium">
+      <span className="flex-shrink-0 text-xs px-2 py-0.5 rounded-full bg-muted text-foreground/60 font-medium">
         {categoryLabel[spot.category] ?? spot.category}
       </span>
       {!life && (spot as WorkSpot).congestion && (
-        <span className="flex-shrink-0 text-xs text-gray-400">
+        <span className="flex-shrink-0 text-xs text-foreground/60">
           {congestionLabel((spot as WorkSpot).congestion)}
         </span>
       )}
@@ -228,8 +225,8 @@ function SharedPlanView({ plan }: { plan: SavedPlan | null }) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <p className="text-gray-500 font-semibold mb-4">유효하지 않은 공유 링크입니다.</p>
-          <Link href="/planner" className="text-sky-600 text-sm font-semibold hover:underline">
+          <p className="text-foreground/70 font-semibold mb-4">유효하지 않은 공유 링크입니다.</p>
+          <Link href="/planner" className="text-primary text-sm font-semibold hover:underline">
             플래너로 돌아가기
           </Link>
         </div>
@@ -243,17 +240,17 @@ function SharedPlanView({ plan }: { plan: SavedPlan | null }) {
 
   return (
     <div className="flex flex-col min-h-screen">
-      <section className="bg-gradient-to-r from-gray-800 via-gray-700 to-gray-800 py-12">
+      <section className="bg-primary-dark py-12">
         <div className="max-w-3xl mx-auto px-4">
-          <p className="text-gray-400 text-xs font-semibold tracking-widest uppercase mb-2">공유된 동선</p>
+          <p className="text-white/70 text-xs font-semibold tracking-widest uppercase mb-2">공유된 동선</p>
           <h1 className="text-2xl sm:text-3xl font-bold text-white mb-1">{plan.name}</h1>
-          <p className="text-gray-400 text-sm">{savedDate} · {plan.route.spots.length}개 장소 · {plan.route.totalDuration}시간</p>
+          <p className="text-white/70 text-sm">{savedDate} · {plan.route.spots.length}개 장소 · {plan.route.totalDuration}시간</p>
         </div>
       </section>
 
       <div className="max-w-3xl mx-auto px-4 py-10 w-full space-y-6">
-        <div className="bg-gradient-to-br from-sky-700 to-teal-600 rounded-2xl p-6 text-white">
-          <p className="text-xs font-semibold text-sky-300 uppercase tracking-widest mb-3">AI 추천 동선</p>
+        <div className="bg-primary-dark rounded-2xl p-6 text-white">
+          <p className="text-xs font-semibold text-white/70 uppercase tracking-widest mb-3">AI 추천 동선</p>
           <p className="text-sm leading-relaxed">{plan.route.description}</p>
         </div>
 
@@ -264,12 +261,12 @@ function SharedPlanView({ plan }: { plan: SavedPlan | null }) {
         </div>
 
         {plan.route.tips.length > 0 && (
-          <div className="bg-sky-50 border border-sky-100 rounded-2xl p-5">
-            <p className="text-sm font-bold text-sky-800 mb-3">워케이션 팁</p>
+          <div className="bg-primary/10 border border-primary/20 rounded-2xl p-5">
+            <p className="text-sm font-bold text-primary mb-3">워케이션 팁</p>
             <ul className="space-y-2">
               {plan.route.tips.map((tip, i) => (
-                <li key={i} className="flex gap-3 text-sm text-sky-700">
-                  <span className="flex-shrink-0 w-5 h-5 bg-sky-700 text-white rounded-full flex items-center justify-center text-xs font-bold">
+                <li key={i} className="flex gap-3 text-sm text-primary">
+                  <span className="flex-shrink-0 w-5 h-5 bg-primary text-on-primary rounded-full flex items-center justify-center text-xs font-bold">
                     {i + 1}
                   </span>
                   <span className="leading-relaxed">{tip}</span>
@@ -283,18 +280,18 @@ function SharedPlanView({ plan }: { plan: SavedPlan | null }) {
           {!saved ? (
             <button
               onClick={handleSave}
-              className="flex-1 py-3 rounded-xl text-sm font-semibold bg-sky-700 text-white hover:bg-sky-600 transition-colors"
+              className="flex-1 py-3 rounded-xl text-sm font-semibold bg-primary text-on-primary hover:opacity-90 transition-opacity"
             >
               내 플래너에 저장
             </button>
           ) : (
-            <div className="flex-1 py-3 rounded-xl text-sm font-semibold bg-green-100 text-green-700 text-center">
+            <div className="flex-1 py-3 rounded-xl text-sm font-semibold bg-good/15 text-good text-center">
               저장 완료
             </div>
           )}
           <Link
             href="/planner"
-            className="flex-1 py-3 rounded-xl text-sm font-semibold border border-gray-200 text-gray-600 hover:border-gray-400 transition-colors text-center"
+            className="flex-1 py-3 rounded-xl text-sm font-semibold border border-border text-foreground/70 hover:border-foreground/40 transition-colors text-center"
           >
             플래너 보기
           </Link>
