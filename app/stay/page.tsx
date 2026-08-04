@@ -61,7 +61,7 @@ function StayCard({ spot }: { spot: LifeSpot }) {
         <img src={spot.imageUrl} alt={spot.name} className="w-full h-44 object-cover" />
       ) : (
         <div className="w-full h-44 bg-gradient-to-br from-indigo-100 to-violet-100 flex items-center justify-center">
-          <span className="text-indigo-300 text-sm font-semibold">이미지 없음</span>
+          <span className="text-indigo-700 text-sm font-semibold">이미지 없음</span>
         </div>
       )}
       <div className="p-4 flex flex-col flex-1">

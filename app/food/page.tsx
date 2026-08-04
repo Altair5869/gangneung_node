@@ -63,7 +63,7 @@ function FoodCard({ spot }: { spot: LifeSpot }) {
         <img src={spot.imageUrl} alt={spot.name} className="w-full h-44 object-cover" />
       ) : (
         <div className="w-full h-44 bg-gradient-to-br from-orange-100 to-amber-100 flex items-center justify-center">
-          <span className="text-orange-300 text-sm font-semibold">이미지 없음</span>
+          <span className="text-orange-700 text-sm font-semibold">이미지 없음</span>
         </div>
       )}
       <div className="p-4 flex flex-col flex-1">
@@ -71,7 +71,7 @@ function FoodCard({ spot }: { spot: LifeSpot }) {
         <p className="text-xs text-foreground/60 truncate mb-3">{spot.address || "주소 정보 없음"}</p>
         <div className="mt-auto flex gap-1.5 flex-wrap">
           {spot.tags.map((tag) => (
-            <span key={tag} className="text-xs px-2 py-0.5 rounded-full bg-orange-50 text-orange-600 font-medium">
+            <span key={tag} className="text-xs px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 font-medium">
               {tag}
             </span>
           ))}

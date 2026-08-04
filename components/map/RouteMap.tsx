@@ -121,6 +121,7 @@ export default function RouteMap({ stops }: { stops: RouteStop[] }) {
         </div>
       )}
 
+      {/* 범례는 캔버스 마커(WORK_COLOR/LIFE_COLOR 고정 hex)와 색 맞춰야 해서 다크모드 토큰 미적용, 고정 라이트 스타일 유지 */}
       {status === "ready" && (
         <div className="absolute bottom-3 left-3 bg-white/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow text-xs flex gap-3">
           <span className="flex items-center gap-1.5 text-gray-900">

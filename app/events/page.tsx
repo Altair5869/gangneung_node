@@ -113,15 +113,15 @@ function EventCard({ event, status }: { event: EventSpot; status: "ongoing" | "u
         <img src={event.imageUrl} alt={event.name} className="w-full h-44 object-cover" />
       ) : (
         <div className="w-full h-44 bg-gradient-to-br from-rose-100 to-fuchsia-100 flex items-center justify-center">
-          <span className="text-rose-300 text-sm font-semibold">이미지 없음</span>
+          <span className="text-rose-700 text-sm font-semibold">이미지 없음</span>
         </div>
       )}
       <div className="p-4 flex flex-col flex-1">
         <div className="flex items-center gap-2 mb-2">
           {status === "ongoing" ? (
-            <span className="text-xs px-2 py-0.5 rounded-full bg-rose-50 text-rose-600 font-semibold">진행 중</span>
+            <span className="text-xs px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 font-semibold">진행 중</span>
           ) : (
-            <span className="text-xs px-2 py-0.5 rounded-full bg-fuchsia-50 text-fuchsia-600 font-semibold">예정</span>
+            <span className="text-xs px-2 py-0.5 rounded-full bg-fuchsia-50 text-fuchsia-700 font-semibold">예정</span>
           )}
         </div>
         <h3 className="font-bold text-foreground mb-1 leading-tight line-clamp-2">{event.name}</h3>
@@ -140,7 +140,7 @@ function EventCard({ event, status }: { event: EventSpot; status: "ongoing" | "u
           )}
           <div className="flex gap-1.5 flex-wrap mt-2">
             {event.tags.map((tag) => (
-              <span key={tag} className="text-xs px-2 py-0.5 rounded-full bg-rose-50 text-rose-600 font-medium">
+              <span key={tag} className="text-xs px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 font-medium">
                 {tag}
               </span>
             ))}

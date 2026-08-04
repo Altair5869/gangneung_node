@@ -232,6 +232,7 @@ export default function KakaoMap({ spots }: { spots: WorkSpot[] }) {
 
           <div className="border-t border-border pt-2 space-y-1">
             <p className="text-xs text-foreground/60">혼잡도</p>
+            {/* 캔버스 마커(CONGESTION_COLOR 고정 hex)와 색 맞춰야 해서 고정 Tailwind 클래스 유지, 토큰화 안 함 */}
             {[
               { color: "bg-green-400", label: "여유" },
               { color: "bg-yellow-400", label: "보통" },
