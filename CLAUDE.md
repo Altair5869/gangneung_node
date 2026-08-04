@@ -16,8 +16,6 @@
 - Node1(생성)→Node2(코드 검증)→재시도 루프는 `@langchain/langgraph`의 `StateGraph`로 구현됨 (2026-07-20). 자유 텍스트 큐레이션은 Upstash Vector(`lib/vector-store.ts`)에 사전 색인된 임베딩으로 검색하고, 미설정/실패 시 실시간 재임베딩으로 폴백함. 임베딩 제공자는 Voyage AI(`voyage-4-lite`, 차원 1024). 자세한 내용은 `docs/AGENT_DESIGN.md` 참고
 - Python+FastAPI 마이크로서비스 분리, LangChain, Chroma/pgvector는 도입하지 않기로 결정함 (Next.js 단일 배포 유지가 공모전 마감 리스크 대비 더 합리적이라 판단)
 
-**주의**: `Gangneung_Node_Plan.md`에는 "LLM (OpenAI/Gemini) 연동"이라고 적혀 있으나 실제 구현은 Claude API다. 기획서 제출 전 이 불일치를 수정해야 한다.
-
 ## 데이터 관련 필수 규칙
 
 1. **`WorkSpot.wifi.available`, `WorkSpot.power.level` 필드에 하드코딩 값을 넣지 않는다.** 관광공사 API·카카오 API 응답에는 와이파이/콘센트 정보가 없다. 모르면 반드시 `null`을 사용한다. 이 두 필드는 전화 확인이나 직접 방문으로 사실 확인이 가능하므로 검증 조건에 사용해도 된다. `power.level`은 boolean이 아니라 `"충분함" | "제한적" | "없음" | null` 3단계 + 미확인 값이다 (콘센트가 아예 없는 곳도, 1~2개뿐인 곳도, 좌석마다 있는 곳도 있어서 있다/없다로는 표현이 부족하다는 것이 실측 데이터 확인 중 드러남).

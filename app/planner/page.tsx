@@ -27,21 +27,27 @@ function PlannerContent() {
 
   useEffect(() => {
     if (shareParam) {
-      const decoded = decodePlan(shareParam);
-      setSharedPlan(decoded);
+      let cancelled = false;
+      decodePlan(shareParam).then((decoded) => {
+        if (!cancelled) setSharedPlan(decoded);
+      });
+      return () => {
+        cancelled = true;
+      };
     } else {
       setPlans(getPlans());
     }
   }, [shareParam]);
 
   const handleDelete = (id: string) => {
+    if (!window.confirm("이 플랜을 삭제할까요?")) return;
     deletePlan(id);
     setPlans(getPlans());
     if (expandedId === id) setExpandedId(null);
   };
 
   const handleCopyLink = async (plan: SavedPlan) => {
-    const encoded = encodePlan(plan);
+    const encoded = await encodePlan(plan);
     const url = `${window.location.origin}/planner?share=${encoded}`;
     await navigator.clipboard.writeText(url);
     setCopiedId(plan.id);
@@ -63,6 +69,11 @@ function PlannerContent() {
       </section>
 
       <div className="max-w-3xl mx-auto px-4 py-10 w-full flex-1">
+        {plans.length > 0 && (
+          <p className="text-xs text-foreground/60 mb-4">
+            최대 20개까지 저장되며, 초과 시 가장 오래된 항목부터 자동 삭제됩니다.
+          </p>
+        )}
         {plans.length === 0 ? (
           <div className="text-center py-20">
             <p className="text-foreground/60 text-lg font-semibold mb-2">저장된 동선이 없습니다</p>
@@ -217,7 +228,12 @@ function SharedPlanView({ plan }: { plan: SavedPlan | null }) {
 
   const handleSave = () => {
     if (!plan) return;
-    savePlan(plan.name, plan.route);
+    const alreadySaved = getPlans().some(
+      (p) => JSON.stringify(p.route) === JSON.stringify(plan.route)
+    );
+    if (!alreadySaved) {
+      savePlan(plan.name, plan.route);
+    }
     setSaved(true);
   };
 
