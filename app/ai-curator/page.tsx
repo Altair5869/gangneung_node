@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { WorkSpot, LifeSpot, CurationRoute, isLifeSpot } from "@/types";
 import { cn, congestionLabel, isBarrierFree } from "@/lib/utils";
-import { categoryLabel as workCategoryLabel, congestionStyle } from "@/lib/spot-visuals";
+import { categoryLabel, congestionStyle } from "@/lib/spot-visuals";
 import RouteMap from "@/components/map/RouteMap";
 import { savePlan } from "@/lib/planner-storage";
 
@@ -31,13 +31,6 @@ const START_TIME_OPTIONS: { value: number | undefined; label: string }[] = [
   { value: 13, label: "오후 1시" },
   { value: 18, label: "오후 6시" },
 ];
-
-const lifeCategoryLabel: Record<string, string> = {
-  attraction: "관광지",
-  food: "식당",
-};
-
-const categoryLabel: Record<string, string> = { ...workCategoryLabel, ...lifeCategoryLabel };
 
 export default function AiCuratorPage() {
   const [workStyle, setWorkStyle] = useState(WORK_STYLES[0].value);
