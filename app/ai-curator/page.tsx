@@ -6,6 +6,7 @@ import { WorkSpot, LifeSpot, CurationRoute, isLifeSpot } from "@/types";
 import { cn, congestionLabel, isBarrierFree } from "@/lib/utils";
 import { categoryLabel, congestionStyle } from "@/lib/spot-visuals";
 import RouteMap from "@/components/map/RouteMap";
+import RouteVerificationCard from "@/components/curator/RouteVerificationCard";
 import { savePlan } from "@/lib/planner-storage";
 
 const WORK_STYLES = [
@@ -368,6 +369,11 @@ export default function AiCuratorPage() {
                   })}
                 </div>
               </div>
+
+              {/* 검증 결과 — verification이 없는 과거 응답/저장 플랜과의 역호환을 위해 optional 렌더 */}
+              {result.verification && (
+                <RouteVerificationCard verification={result.verification} spots={result.spots} />
+              )}
 
               {/* 워케이션 팁 */}
               {result.tips.length > 0 && (

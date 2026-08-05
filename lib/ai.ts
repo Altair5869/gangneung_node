@@ -1,9 +1,20 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { StateGraph, Annotation, START, END } from "@langchain/langgraph";
-import { WorkSpot, LifeSpot, RouteStop, CurationRequest, CurationRoute, isLifeSpot } from "@/types";
+import {
+  WorkSpot,
+  LifeSpot,
+  RouteStop,
+  CurationRequest,
+  CurationRoute,
+  RouteCheck,
+  RouteVerification,
+  SpotEvidence,
+  isLifeSpot,
+} from "@/types";
 import { embed, cosineSimilarity } from "@/lib/embeddings";
 import { queryTopK } from "@/lib/vector-store";
-import { isBarrierFree } from "@/lib/utils";
+import { isBarrierFree, wifiLabel, powerLabel, noiseLabel } from "@/lib/utils";
+import { VERIFIED_SPOTS } from "@/lib/verified-spots";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -49,6 +60,10 @@ const RECOMMEND_TOOL: Anthropic.Tool = {
 // 검증 가능한(validateRoute가 실제로 체크하는) preference 3개. "뷰 좋은 곳"/"카페인 충전 가능"은
 // 구조화된 필드가 없어 필터·검증 어느 쪽에도 없다 (docs/AGENT_DESIGN.md 매핑표 참고).
 const CHECKABLE_PREFERENCES = ["조용한 환경", "콘센트 필수", "무장애 접근 가능"] as const;
+
+// 구조화된 필드가 없어 코드로 검증할 수 없는 선호 조건. 검증한 척하지 않고 검증 결과 카드에
+// "검사하지 않음(skipped)"으로 정직하게 노출하기 위해서만 사용한다 (docs/AGENT_DESIGN.md 매핑표).
+const UNVERIFIABLE_PREFERENCES = ["뷰 좋은 곳", "카페인 충전 가능"] as const;
 
 // filterByPreferences의 "5곳 미만이면 전체 무시" 폴백과 curateRoute의 조기 종료 분기가
 // 반드시 같은 임계값을 봐야 하므로 상수로 공유한다 (2026-07-27, P2 항목 1).
@@ -171,6 +186,66 @@ function balanceLifeSpots(
   const food = sorted.filter((s) => s.category === "food").slice(0, Math.max(3, Math.floor(limit / 3)));
   const rest = sorted.filter((s) => s.category !== "food").slice(0, limit - food.length);
   return [...rest, ...food].sort((a, b) => distanceToNearest(a) - distanceToNearest(b));
+}
+
+// 옵션 A(2026-08-05): 워크스팟 후보 좌표 기준 위치기반 API 후보를 지역 기반 후보에 union한다.
+// 관광공사 API 호출은 lib/spot-corpus.ts 쪽 책임이라 여기서는 주입받은 함수만 호출한다
+// (lib/ai.ts가 외부 API 조회를 직접 하지 않는 기존 구조를 유지하기 위함).
+// 실패·0건이면 base(지역 기반 후보)를 그대로 돌려줘 큐레이션이 중단되지 않는다.
+type NearbyLifeSpotFetcher = (refs: { lat: number; lng: number }[]) => Promise<LifeSpot[]>;
+
+// 같은 장소를 관광공사와 카카오가 서로 다른 id로 반환하는 일이 실제로 있다 —
+// `스타벅스 강릉강문해변점`은 라이프스팟 `food-3536360`이면서 워크스팟 `kakao-397693663`이고,
+// `롱블랙`은 `food-2891927` ↔ `kakao-506351806`이다(2026-08-05 QA 실측). id 스킴이 달라
+// Map 기반 dedupe로는 잡히지 않고, 방치하면 "이 카페에서 일하고 → 같은 카페에서 식사"라는
+// 동선이 거리 0km로 validateRoute를 통과할 수 있다.
+//
+// 좌표만으로 판정하면 안 된다: 실측에서 워크스팟 30m 이내에 있는 위치기반 후보 27건 중 12건이
+// 옆 건물의 **정상 식당**이었다(`강릉짬뽕순두부 동화가든 본점`은 카페 `카페동화`와 9m, `주문진불쭈꾸미`는
+// `주문진다방`과 15m). 순수 거리 기준으로 자르면 오히려 좋은 후보가 대량으로 날아간다.
+// 그래서 "충분히 가깝고(≤50m) + 이름이 서로 포함 관계"인 경우만 동일 장소로 본다.
+const SAME_PLACE_KM = 0.05;
+
+function normalizeName(name: string): string {
+  return name.toLowerCase().replace(/[\s()\-·.,'"]/g, "");
+}
+
+function looksSamePlace(spot: LifeSpot, work: WorkSpot): boolean {
+  const a = normalizeName(spot.name);
+  const b = normalizeName(work.name);
+  if (a.length < 2 || b.length < 2) return false;
+  if (!a.includes(b) && !b.includes(a)) return false;
+  return calculateHaversineDistance(spot.lat, spot.lng, work.lat, work.lng) <= SAME_PLACE_KM;
+}
+
+async function extendLifeSpotCandidates(
+  base: LifeSpot[],
+  refSpots: WorkSpot[],
+  knownWorkSpots: WorkSpot[],
+  fetchNearby?: NearbyLifeSpotFetcher
+): Promise<LifeSpot[]> {
+  if (!fetchNearby || refSpots.length === 0) return base;
+
+  let nearby: LifeSpot[];
+  try {
+    // 랭킹 상위 순서 그대로 넘긴다 — 실제로 몇 곳을 쓸지(상한)는 fetchNearby 구현이 자른다.
+    nearby = await fetchNearby(refSpots.map((s) => ({ lat: s.lat, lng: s.lng })));
+  } catch (error) {
+    console.error("[ai] 위치기반 라이프스팟 확장 실패 — 지역 기반 후보로 폴백:", error);
+    return base;
+  }
+
+  const byId = new Map(base.map((s) => [s.id, s]));
+  for (const spot of nearby) {
+    // 숙박 배제 기준은 curateRoute의 nonStayLifeSpots와 동일하게 유지한다.
+    if (spot.category === "stay") continue;
+    if (byId.has(spot.id)) continue;
+    // 워크스팟 코퍼스 전량과 대조한다 — 랭킹 상위 후보만 보면, 지금은 상위가 아니지만 코퍼스에
+    // 존재하는 같은 장소가 그대로 식당 후보로 남는다.
+    if (knownWorkSpots.some((w) => looksSamePlace(spot, w))) continue;
+    byId.set(spot.id, spot);
+  }
+  return [...byId.values()];
 }
 
 export function calculateHaversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -328,10 +403,16 @@ function totalSequentialDistance(spots: RouteStop[]): number {
 // (2) 그 외 구조적 위반(워크스팟 개수, 식당 누락, 거리 초과) — 조기 종료 분기라도 반드시 알려야 한다.
 // 문자열 패턴 매칭(예: "조건 위반" 포함 여부)에 기대지 않고, push하는 시점에 바로 태깅해서
 // 두 함수(curateRoute 조기 종료 분기, validateNode)가 각자 필요한 목록을 그대로 쓰게 한다(2026-07-27, QA FIX).
+//
+// checks는 기존 reasons/structuralReasons와 별개로, "무엇을 검증해서 통과했는가"를 성공 케이스에서도
+// 화면에 보여주기 위한 표시용 결과다(옵션 C). 판정 자체는 아래 기존 조건식을 그대로 재사용하며
+// 새 판정 기준을 만들지 않는다 — 검증 로직과 표시가 어긋나면 화면이 거짓말을 하게 되기 때문이다.
+// congestion은 실데이터와 estimateCongestion 추정치가 섞여 있어(CLAUDE.md 데이터 규칙 5)
+// "검증 통과 항목"에 넣으면 추정치가 사실로 승격되므로 의도적으로 제외한다.
 function validateRoute(
   route: CurationRoute,
   request: CurationRequest
-): { valid: boolean; reasons: string[]; structuralReasons: string[] } {
+): { valid: boolean; reasons: string[]; structuralReasons: string[]; checks: RouteCheck[] } {
   const reasons: string[] = [];
   const structuralReasons: string[] = [];
   const pushStructural = (reason: string) => {
@@ -356,25 +437,34 @@ function validateRoute(
   // power.level은 noise와 달리 전화 확인/방문으로 사실 확인이 가능한 필드(CLAUDE.md 데이터 규칙 1)라
   // "필수" 조건에서는 null(미확인)도 위반으로 판정한다 — 확인 안 된 곳을 "충족"으로 쳐주면 필수 조건의
   // 의미가 약해진다. filterByPreferences도 동일 기준(null 제외)이라 필터-검증 간 정합성은 이미 맞음(2026-07-27 재확인).
-  if (request.preferences.includes("콘센트 필수")) {
+  const powerChecked = request.preferences.includes("콘센트 필수");
+  let powerViolations = 0;
+  if (powerChecked) {
     workStops.forEach((s) => {
       if (s.power.level !== "충분함" && s.power.level !== "제한적") {
+        powerViolations++;
         pushPreference(`콘센트 조건 위반: ${s.name}`);
       }
     });
   }
 
-  if (request.preferences.includes("무장애 접근 가능")) {
+  const barrierChecked = request.preferences.includes("무장애 접근 가능");
+  let barrierViolations = 0;
+  if (barrierChecked) {
     workStops.forEach((s) => {
       if (!isBarrierFree(s.barrierFree)) {
+        barrierViolations++;
         pushPreference(`무장애 조건 위반: ${s.name}`);
       }
     });
   }
 
-  if (request.preferences.includes("조용한 환경")) {
+  const noiseChecked = request.preferences.includes("조용한 환경");
+  let noiseViolations = 0;
+  if (noiseChecked) {
     workStops.forEach((s) => {
       if (s.noise === "언급됨-시끄러움") {
+        noiseViolations++;
         pushPreference(`조용한 환경 조건 위반: ${s.name}`);
       }
     });
@@ -386,7 +476,63 @@ function validateRoute(
     pushStructural(`이동 거리 초과: 총 ${distance.toFixed(1)}km (기준 ${threshold}km)`);
   }
 
-  return { valid: reasons.length === 0, reasons, structuralReasons };
+  // 각 필드 상태 문구는 반드시 lib/utils의 라벨 헬퍼를 거친다 — 여기서 한국어 상태 문자열을
+  // 새로 지어내면 "미확인"이 "없음"으로 둔갑하는 등 데이터 규칙 위반이 UI까지 번진다.
+  const perStop = (render: (s: WorkSpot) => string) => workStops.map((s) => `${s.name} · ${render(s)}`).join(", ");
+  const SKIPPED_DETAIL = "선호 조건으로 선택하지 않아 검사하지 않았습니다";
+
+  const checks: RouteCheck[] = [
+    {
+      id: "workspot-count",
+      label: "워크스팟 1곳 선정",
+      status: workStops.length === 1 ? "pass" : "fail",
+      detail: `현재 ${workStops.length}곳`,
+    },
+    {
+      id: "food-included",
+      label: "식당 포함",
+      status: hasFood ? "pass" : "fail",
+      detail: hasFood ? "식당 1곳 이상 포함" : "식당이 동선에 없습니다",
+    },
+    {
+      id: "distance",
+      label: "총 이동 거리",
+      status: distance <= threshold ? "pass" : "fail",
+      detail: `${distance.toFixed(1)} / ${threshold} km · 직선 기준`,
+    },
+    {
+      id: "power",
+      label: "콘센트 필수 조건",
+      status: !powerChecked ? "skipped" : powerViolations === 0 ? "pass" : "fail",
+      detail: powerChecked ? perStop((s) => powerLabel(s.power.level)) : SKIPPED_DETAIL,
+    },
+    {
+      id: "barrier-free",
+      label: "무장애 접근 조건",
+      status: !barrierChecked ? "skipped" : barrierViolations === 0 ? "pass" : "fail",
+      detail: barrierChecked
+        ? perStop((s) => (isBarrierFree(s.barrierFree) ? "출입 가능 확인" : "정보 없음"))
+        : SKIPPED_DETAIL,
+    },
+    {
+      id: "noise",
+      label: "조용한 환경 조건",
+      status: !noiseChecked ? "skipped" : noiseViolations === 0 ? "pass" : "fail",
+      detail: noiseChecked ? perStop((s) => noiseLabel(s.noise)) : SKIPPED_DETAIL,
+    },
+  ];
+
+  const activeUnverifiable = UNVERIFIABLE_PREFERENCES.filter((p) => request.preferences.includes(p));
+  if (activeUnverifiable.length > 0) {
+    checks.push({
+      id: "unverifiable-preference",
+      label: activeUnverifiable.join(" · "),
+      status: "skipped",
+      detail: "구조화된 데이터가 없어 자동 검증 대상이 아닙니다 (AI 추천 시 참고만 함)",
+    });
+  }
+
+  return { valid: reasons.length === 0, reasons, structuralReasons, checks };
 }
 
 const MAX_ATTEMPTS = 3;
@@ -394,9 +540,43 @@ const MAX_ATTEMPTS = 3;
 // Claude는 좌표만 보고 실제 km 단위 거리를 정확히 알 수 없어 tips에 근거 없는 수치를
 // 지어낼 수 있다 (예: "500m 이내"). 프롬프트로 언급을 막는 것과 별개로, 실제 이동거리는
 // 코드로 계산한 값만 사실로 노출한다.
+// 문구 정정(2026-08-05): 이 값은 하버사인(직선) 합계인데 "실제"라고 표기해, 같은 화면에서
+// 도로 경로를 그리는 RouteMap(카카오모빌리티)과 서로 다른 거리 개념이 같은 이름으로 노출됐다.
+// 도로 거리·이동 시간 반영은 옵션 E 범위이므로 여기서는 표기만 "직선 기준"으로 바로잡는다.
 function withDistanceTip(route: CurationRoute): CurationRoute {
   const distance = totalSequentialDistance(route.spots);
-  return { ...route, tips: [...route.tips, `실제 총 이동 거리: 약 ${distance.toFixed(1)}km`] };
+  return { ...route, tips: [...route.tips, `총 이동 거리: 약 ${distance.toFixed(1)}km (직선 기준)`] };
+}
+
+// 실측 24곳(lib/verified-spots.ts) 판정용 집합. 실측 여부를 "검증됨"으로 오인하게 표시하지 않기
+// 위해 UI에서는 별도 배지로만 구분한다.
+const VERIFIED_CONTENT_IDS = new Set(
+  VERIFIED_SPOTS.map((v) => v.tourismContentId).filter((id): id is string => Boolean(id))
+);
+
+// LifeSpot에는 wifi/power/noise/barrierFree 필드 자체가 없으므로 워크스팟만 대상으로 한다.
+function buildEvidence(route: CurationRoute): SpotEvidence[] {
+  return route.spots
+    .filter((s): s is WorkSpot => !isLifeSpot(s))
+    .map((s) => ({
+      spotId: s.id,
+      wifi: wifiLabel(s.wifi.available),
+      power: powerLabel(s.power.level),
+      noise: noiseLabel(s.noise),
+      barrierFree: isBarrierFree(s.barrierFree) ? "출입 가능 확인" : "정보 없음",
+      measured: Boolean(s.tourismContentId && VERIFIED_CONTENT_IDS.has(s.tourismContentId)),
+    }));
+}
+
+function buildVerification(route: CurationRoute, request: CurationRequest, attempts: number): RouteVerification {
+  const { checks } = validateRoute(route, request);
+  return {
+    checks,
+    distanceKm: Number(totalSequentialDistance(route.spots).toFixed(1)),
+    distanceThresholdKm: distanceThresholdFor(request.duration),
+    attempts,
+    evidence: buildEvidence(route),
+  };
 }
 
 function formatClock(totalMinutes: number): string {
@@ -419,10 +599,16 @@ function buildSchedule(spots: RouteStop[], request: CurationRequest, startHour: 
   });
 }
 
-function finalizeRoute(route: CurationRoute, request: CurationRequest): CurationRoute {
+// attempts: 실제 생성(Claude 호출) 횟수. 조기 종료 폴백 경로는 1회 생성이므로 1이고,
+// LangGraph 경로는 재시도 포함 누적 attempt 값을 그대로 싣는다.
+function finalizeRoute(route: CurationRoute, request: CurationRequest, attempts: number): CurationRoute {
   const withDistance = withDistanceTip(route);
-  if (request.startHour === undefined) return withDistance;
-  return { ...withDistance, schedule: buildSchedule(withDistance.spots, request, request.startHour) };
+  const verified: CurationRoute = {
+    ...withDistance,
+    verification: buildVerification(withDistance, request, attempts),
+  };
+  if (request.startHour === undefined) return verified;
+  return { ...verified, schedule: buildSchedule(verified.spots, request, request.startHour) };
 }
 
 // Node1(생성)→Node2(코드 기반 검증)→불합격 시 사유를 프롬프트에 실어 재시도(최대 MAX_ATTEMPTS회)
@@ -477,7 +663,8 @@ const curationGraph = new StateGraph(CurationState)
 export async function curateRoute(
   request: CurationRequest,
   availableSpots: WorkSpot[],
-  availableLifeSpots: LifeSpot[] = []
+  availableLifeSpots: LifeSpot[] = [],
+  options: { fetchNearbyLifeSpots?: NearbyLifeSpotFetcher } = {}
 ): Promise<CurationRoute> {
   // 숙소는 사용자가 이미 머무는 곳이지 "일하러 이동할 목적지"가 아니므로 워케이션 동선에서는 제외한다.
   // 숙박 자체 추천은 /stay 페이지에서 별도로 다룬다.
@@ -503,7 +690,15 @@ export async function curateRoute(
     : nonStaySpots.length;
 
   const workSpots = await preFilter(nonStaySpots, request);
-  const lifeSpots = balanceLifeSpots(nonStayLifeSpots, workSpots, 15);
+  // 위치기반 후보는 워크스팟 후보가 확정된 뒤에야 좌표 기준이 생기므로 preFilter 다음에 확장한다.
+  // 확장 결과에 대해 적용하는 balanceLifeSpots(최근접 정렬 + 식당 확보)는 그대로 재사용한다.
+  const lifeSpotCandidates = await extendLifeSpotCandidates(
+    nonStayLifeSpots,
+    workSpots,
+    nonStaySpots,
+    options.fetchNearbyLifeSpots
+  );
+  const lifeSpots = balanceLifeSpots(lifeSpotCandidates, workSpots, 15);
 
   if (activeCheckablePreferences.length > 0 && strictMatchCount < MIN_PREFERENCE_MATCHES) {
     const route = await generateOnce(request, workSpots, lifeSpots);
@@ -518,7 +713,7 @@ export async function curateRoute(
       structuralReasons.length > 0
         ? `${baseNote} 다만 ${structuralReasons.join("; ")} 문제도 있어 참고해 주세요.`
         : baseNote;
-    return finalizeRoute({ ...route, validationNote }, request);
+    return finalizeRoute({ ...route, validationNote }, request, 1);
   }
 
   const result = await curationGraph.invoke({
@@ -532,11 +727,15 @@ export async function curateRoute(
   });
 
   const route = result.route as CurationRoute;
+  // generateNode가 최소 1회는 실행되므로 attempt는 1 이상이지만, 상태 초기값(0)이 그대로 노출되는
+  // 일이 없도록 하한을 둔다.
+  const attempts = Math.max(1, result.attempt);
   if (!result.valid) {
     return finalizeRoute(
       { ...route, validationNote: "일부 조건을 만족하는 동선을 찾지 못해 근접한 결과를 보여드립니다." },
-      request
+      request,
+      attempts
     );
   }
-  return finalizeRoute(route, request);
+  return finalizeRoute(route, request, attempts);
 }

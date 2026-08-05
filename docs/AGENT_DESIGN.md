@@ -250,3 +250,65 @@ PRD 검토 중 `filterByPreferences`(사전 필터)와 `validateRoute`(Node 2 �
 **결정**: (b) 채택. `app/api/ai/curate/route.ts`의 `isValidCurationRequest`에 `[2, 4, 6, 8].includes(v.duration)` 검증을 추가해, 그 외 값은 `400 invalid_curation_request`로 거부한다. 항목 1에서 어차피 이 라우트의 입력 검증부를 다시 만지게 되어 diff가 작았고, `/api/ai/curate`를 직접 호출하는 제3자/QA 자동화에 계약을 명시적으로 강제하는 편이 "암묵적으로 최근접 버킷에 매핑된다"보다 낫다고 판단했다.
 
 `distanceThresholdFor`(`lib/ai.ts`) 자체의 최근접 버킷 매핑 로직(동점 시 작은 값 우선)은 그대로 남아 있다 — 위 API 계약 검증을 통과한 값(2/4/6/8)은 애초에 버킷과 정확히 일치하므로 매핑 로직이 실질적으로 쓰일 일은 없지만, 함수 자체를 단순화하는 것은 이번 범위 밖이라 손대지 않았다.
+
+## 라이프스팟 후보 확보 — 위치기반 API 병합 (2026-08-05, 옵션 A)
+
+**문제**: 라이프스팟 후보가 `buildLifeSpotCorpus()`의 "강릉 전역 상위 30+30건" 고정이라, 워크스팟이 어디로 정해지든 후보 집합이 항상 같았다. 재추천해도 후보가 그대로이고, 외곽 워크스팟을 고르면 동선이 길어진다. 동시에 `getLocationBasedList`(위치기반 관광정보 `locationBasedList2`)는 `app/api/tourism/route.ts`에서만 참조되는 사실상 데드 코드여서, 기획서 3항의 "활용 API: 위치기반 정보" 서술에 대응하는 사용자 경로가 0이었다.
+
+**결정: 대체가 아니라 병합(union).** 워크스팟 후보(랭킹 상위)의 좌표를 기준으로 위치기반 API를 호출해 얻은 후보를 기존 지역 기반 후보에 id 기준 union한다. 대체를 택하지 않은 이유:
+
+1. **파이프라인 구조상 대체가 불가능.** `app/api/ai/curate/route.ts`는 클라이언트가 보낸 `lifeSpots`의 id를 서버 코퍼스와 대조해 교집합만 채택한다 — 클라이언트가 보낸 목록이 후보의 상한이다. 그래서 서버가 직접 조회한 위치기반 후보를 `curateRoute` 안에서 union하는 경로를 명시적으로 열었다(`options.fetchNearbyLifeSpots` 주입). 추가되는 값의 출처가 클라이언트 입력이 아니라 관광공사 API 응답이므로 "클라이언트 값을 신뢰하지 않는다"(2026-07-28, P3 항목 1) 원칙과 충돌하지 않는다. 클라이언트가 보낸 **필드 값**을 신뢰하는 경로는 추가하지 않았다.
+2. **폴백 안전성.** 위치기반 API만 쓰면 호출 실패 시 라이프스팟이 0건이 되고, `validateRoute`의 "식당이 동선에 포함되지 않았습니다" 구조적 위반으로 재시도 3회(약 42초)를 통째로 낭비한다.
+3. **커버리지.** 위치기반 API는 반경 내만 반환하므로 워크스팟이 외곽이면 후보가 오히려 줄 수 있다. 지역 기반 30+30건이 하한선 역할을 한다.
+
+**파라미터** (`lib/spot-corpus.ts`의 `buildNearbyLifeSpotCorpus`)
+
+| 항목 | 값 | 근거 |
+|---|---|---|
+| 기준 좌표 수 `NEARBY_REF_COUNT` | 1 (preFilter 결과 12곳 중 랭킹 1위) | 원래 3(상위 3곳)으로 시작했으나, QA 실측(2026-08-05, n=10 페어링)에서 랭킹 2·3위 반경 후보가 라이프스팟 랭킹 상위권을 밀어내 총 이동거리가 병합 전보다 +151m(2.9%) 유의하게 길어짐을 확인(10/10 동일 방향). 1로 줄이면 병합 전과 거리가 소수점 3자리까지 완전 일치(재검증 완료)하면서 호출 수도 절반으로 줆 — 후보 다양성보다 동선 품질·API 호출 절약을 우선하기로 결정 |
+| `contentTypeId` | `12`(관광지), `39`(음식점) 각각 호출 | `TourismApiItem`에 `contenttypeid`가 없어 응답만으로 카테고리 분류 불가. 타입 확장보다 타입별 호출이 최소 변경 |
+| 요청당 최대 호출 | 1 × 2 = **2회** (캐시 미스 기준) | refs를 몇 개 넘기든 함수 내부에서 `slice(0, NEARBY_REF_COUNT)`로 상한을 코드로 보장 |
+| `radius` | 3000 m | 거리 임계값이 duration별 8~16km이고 구간이 3~4개이므로 구간당 3km 이내가 적정 |
+| `numOfRows` | 20 (현행) | 3좌표 × 2타입 × 20 = 최대 120건 |
+| 캐시 | `fetchApi`의 `next: { revalidate: 3600 }` + 좌표 **소수점 3자리 반올림** | 워크스팟 좌표는 소수점 10자리라 그대로 쓰면 URL이 매번 달라져 캐시가 한 번도 안 맞는다. 격자화는 `getLocationBasedList` 내부(`toGridCoord`)에서 수행해 호출부마다 어긋나지 않게 함 |
+
+**폴백**: 6회 호출은 `Promise.allSettled`로 감싸 일부 실패해도 성공분만 병합하고, 전부 실패하면 빈 배열 → `extendLifeSpotCandidates`가 지역 기반 후보를 그대로 반환한다. 병합 후 후보에 적용하는 `balanceLifeSpots`(최근접 거리순 + 식당 최소 확보) 로직은 변경하지 않았다.
+
+**비목표**: 위치기반 API로 워크스팟을 추가하지 않는다 — `wifi`/`power`/`noise`가 전부 `null`인 스팟만 늘어나 데이터 규칙상 이득이 없다.
+
+**조용한 실패 로깅**: 공공데이터포털은 트래픽 한도 초과·키 오류 시 HTTP 200에 다른 에러 봉투를 실어 줄 수 있는데, 기존 `extractItems`는 이때 TypeError를 냈고 호출부의 `allSettled`/`try-catch`가 이를 "정상 0건"과 똑같이 빈 배열로 삼켜 흔적이 남지 않았다. `extractItems`가 `data.response?.body` 부재를 감지해 `[tourism-api] unexpected envelope (endpoint=…)`를 `console.error`로 남기도록 했다(폴백 동작·사용자 에러 문구는 그대로).
+
+**실측(2026-08-05, 로컬 dev, 실제 API/Claude 호출, 코퍼스 232곳)**: `/api/ai/curate` 7.4~7.5초(재시도 없이 1회 성공, 관광공사 캐시 워밍 상태) — 기존 실측 12~14초 대비 증가 없음. `maxDuration = 120` 상향 불필요. 위치기반 단건 호출은 캐시 미스 0.30초 / 히트 0.004초이며, 소수점 4자리 이하만 다른 좌표(같은 3자리 격자)도 캐시 히트를 확인했다.
+
+## 검증 결과 노출 (2026-08-05, 옵션 C)
+
+**문제**: `validateRoute`가 코드로 검증을 하는데 결과는 실패 시 `validationNote` 한 줄로만 보였다. 성공 케이스에서 "무엇을 검증해 통과했는지"가 화면에 0건이라, 이 프로젝트의 차별점(할루시네이션을 코드로 잡는 구조)이 코드에만 존재했다.
+
+**결정**: `validateRoute`가 기존 반환 필드(`valid`/`reasons`/`structuralReasons`)를 그대로 둔 채 표시용 `checks: RouteCheck[]`를 함께 반환하고, `finalizeRoute`가 `CurationRoute.verification`(**optional**)을 채운다. 판정은 기존 조건식을 그대로 재사용하며 새 기준을 만들지 않는다 — 검증 로직과 표시가 어긋나면 화면이 거짓말을 하게 된다. LLM에게 되묻지 않는다(AI 규칙 3).
+
+`verification`이 optional인 것은 타협이 아니라 요건이다: `CurationRoute`는 `lib/planner-storage.ts`가 `localStorage`(`wk_plans`)에 직렬화하고 `encodePlan`으로 공유 URL에 싣는다. 필수 필드로 만들면 기존 저장 플랜·공유 링크 렌더링이 깨진다.
+
+**status 판정 규칙**
+
+| check id | pass | fail | skipped |
+|---|---|---|---|
+| `workspot-count` | 워크스팟 정확히 1곳 | 그 외 | — |
+| `food-included` | 식당 1곳 이상 | 미포함 | — |
+| `distance` | `distance <= threshold` | 초과 | — |
+| `power` | "콘센트 필수" 선택 + 전 워크스팟이 충분함/제한적 | 위반 발생 | 선호 미선택 |
+| `barrier-free` | "무장애 접근 가능" 선택 + `exit === true` | 위반 | 선호 미선택 |
+| `noise` | "조용한 환경" 선택 + `언급됨-시끄러움` 아님 | 위반 | 선호 미선택 |
+| `unverifiable-preference` | — | — | "뷰 좋은 곳"/"카페인 충전 가능" 선택 시에만 항목 추가 |
+
+`skipped`는 화면에서 흐리게(`opacity-60`) 낮춰 통과로 오인되지 않게 한다.
+
+**표기 규칙 (데이터 규칙 1·2·3 준수)**
+
+- `wifi`/`power`/`noise` 문구는 전부 `lib/utils`의 `wifiLabel`/`powerLabel`/`noiseLabel`을 거친다. 새 라벨 함수를 만들지 않는다.
+- `null`/`미확인`은 회색 중립 배지(`bg-muted`)이며 절대 `bad`(빨강)가 아니다 — "없음"과 "미확인"은 다르다.
+- `noise`는 `조용함 언급`/`시끄러움 언급` 표기를 유지하고, 카드 각주에 "블로그·검색 스니펫 기반 신호"임을 밝힌다. `조용함`/`quiet` 단독 표기 금지.
+- `wifi.speedMbps` 관련 문구(Mbps/속도/빠른 WiFi)는 UI에 0건 (데이터 규칙 2).
+- `congestion`은 검증 카드에서 **제외**한다 — 실데이터와 `estimateCongestion` 추정치가 섞여 있어(데이터 규칙 5) "검증 통과 항목"에 넣으면 추정치가 사실로 승격된다. 기존 결과 카드의 "예상 OO" 표기는 그대로 둔다.
+- 실측 24곳은 `실측 확인`, 그 외는 `API 제공` 배지로만 구분한다(`measured: false`를 "검증됨"으로 오인시키지 않기 위함).
+
+**거리 표기 정정**: `withDistanceTip`의 `실제 총 이동 거리: 약 X km`를 `총 이동 거리: 약 X km (직선 기준)`으로 고쳤다. 같은 화면의 `RouteMap`은 카카오모빌리티 도로 경로를 그리는데 팁은 하버사인 직선 합계를 "실제"라고 불러 두 거리 개념이 뒤섞여 있었다. 이동 시간 반영·도로 거리 교체는 옵션 E 범위이므로 표기만 정정했고, `validateRoute`의 임계값 판정은 하버사인 그대로다(AI 규칙 2).

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { curateRoute } from "@/lib/ai";
-import { buildSpotCorpus, buildLifeSpotCorpus } from "@/lib/spot-corpus";
+import { buildSpotCorpus, buildLifeSpotCorpus, buildNearbyLifeSpotCorpus } from "@/lib/spot-corpus";
 import { CurationRequest, WorkSpot, LifeSpot } from "@/types";
 
 interface CurateRequestBody {
@@ -102,7 +102,15 @@ export async function POST(request: NextRequest) {
       .map((s) => lifeById.get(s?.id))
       .filter((s): s is LifeSpot => s !== undefined);
 
-    const route = await curateRoute(body.curationRequest, verifiedSpots, verifiedLifeSpots);
+    // 라이프스팟 후보를 위 id 대조 결과(클라이언트가 보낸 목록의 교집합)만으로 두면, 서버가
+    // 위치기반 API로 새로 찾아낸 후보는 클라이언트가 그 id를 보낸 적이 없어 영원히 채택될 수
+    // 없다. 그래서 서버가 직접 조회한 후보를 curateRoute 안에서 union하는 경로를 여기서
+    // 명시적으로 열어 준다(요구사항 R2-2). 이건 "클라이언트 값을 신뢰하지 않는다"는 원칙과
+    // 충돌하지 않는다 — 추가되는 값의 출처가 클라이언트 입력이 아니라 관광공사 API 응답이다.
+    // 좌표 기준(워크스팟 랭킹 상위)은 preFilter 이후에야 정해지므로 조회 함수를 주입만 한다.
+    const route = await curateRoute(body.curationRequest, verifiedSpots, verifiedLifeSpots, {
+      fetchNearbyLifeSpots: buildNearbyLifeSpotCorpus,
+    });
     return NextResponse.json({ route });
   } catch (error) {
     // ANTHROPIC_API_KEY 미설정 등 curateRoute 내부 예외를 그대로 클라이언트에 노출하지 않는다.
