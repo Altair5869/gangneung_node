@@ -331,3 +331,27 @@ PRD 검토 중 `filterByPreferences`(사전 필터)와 `validateRoute`(Node 2 �
 **R4 — 목록 필터 확장**: `SpotsClient.tsx`에 `elevator`/`restroom`/`parking` 필터 칩을 필드 의미에 1:1 대응하는 정직한 라벨로 추가했다(`무장애`라는 뭉뚱그린 이름 아래 숨기지 않음). 기존 "무장애"(`exit` 기준) 토글은 변경 없음. `wheelchair` 필터 칩은 R2와 같은 이유로 추가하지 않았다.
 
 **부수 발견 — 이번 라운드 범위 밖, 별도 확인 필요**: R3 조사 중 `lib/spot-corpus.ts`의 `buildSpotCorpus`가 부르는 `getBarrierFreeList`(목록 API)에는 애초에 barrierFree 5개 필드 키가 없다는 것을 확인했다(위 R3 첫 항목과 동일 사실). 즉 **AI 큐레이터가 실제로 쓰는 대량 코퍼스에서 `VERIFIED_SPOTS`(24곳) 밖의 스팟은 5개 필드가 사실상 항상 `false`**로 채워지고, 실제 `exit: true` 등 신호는 거의 전부 `VERIFIED_SPOTS`의 수동 실측(24곳 중 16곳이 `exit:true`)에서 나온다. 단건 상세 조회(`getSpotById` → `getBarrierFreeDetail` → `detailWithTour2`)만 이 필드들을 실제로 채운다. 값 자체가 가짜는 아니라서(빈 응답 → `false`는 정당한 매핑) 데이터 규칙 위반은 아니지만, "barrierFree는 실데이터"(CLAUDE.md 규칙 4)라는 문서화된 전제가 대량 코퍼스 경로에서는 사실상 `VERIFIED_SPOTS` 의존으로 크게 제한된다는 뜻이라 `docs/DATA_STATUS.md` "남은 일"에 별도 항목으로 남겼다. 고치려면 `buildSpotCorpus`가 무장애 후보마다 `getBarrierFreeDetail`을 추가 호출하도록 바꿔야 하는데, 이번 옵션 I(표시 확장) 범위를 벗어나는 별도 작업이라 이번 라운드에서는 손대지 않았다.
+
+## 일정표 이동 시간 — 가정 속도 기반 추정치 (2026-08-06, 옵션 E)
+
+**배경**: `buildSchedule`(`lib/ai.ts`, `startHour` 지정 시에만 호출)이 스팟 간 이동 시간을 전혀 반영하지 않아, 6km 떨어진 두 스팟도 일정표에서 바로 이어 붙어 나오는 문제(W3, 2026-08-05 아카이브 진단)가 있었다. 같은 진단의 W4("총 이동 거리"를 "실제 거리"로 오표기)는 옵션 C 라운드(커밋 `39531d1`)에서 이미 "직선 기준"으로 정정 완료됐고 이번 라운드에서는 재작업하지 않았다 — `withDistanceTip`, `RouteVerificationCard`의 각주는 무변경.
+
+**R2-1 — 카카오모빌리티 Directions API를 이번 라운드에 채택하지 않은 이유**: `components/map/RouteMap.tsx`가 이미 `/api/directions`(카카오모빌리티, `apis-navi.kakaomobility.com`)를 호출해 지도 폴리라인을 그리므로 신규 유료 API 도입은 아니다. 그럼에도 일정표 계산에 끌어오지 않은 이유:
+1. 호출 위치가 다르다 — 현재 호출은 클라이언트(`RouteMap`)가 결과를 받은 뒤 지도용으로만 실행되는데, `buildSchedule`은 서버(`curateRoute` 내부, `/api/ai/curate` 처리 중)에서 실행된다. 일정표에 반영하려면 큐레이션 요청 처리 중 카카오모빌리티를 추가 호출해야 해 "부가 기능" 의존을 "필수 경로" 의존으로 격상시키게 된다.
+2. 지연시간 리스크 — `/api/ai/curate`는 실측 12~14초, `maxDuration=120`인데 구간마다(최대 3구간) 외부 API 호출을 추가하면 그 지연이 그대로 응답 시간에 더해진다.
+3. 호출 중복 — 서버가 계산해도 `RouteMap`은 구조상 폴리라인용 호출을 별도로 또 한다. 하나로 합치려면 `CurationRoute`에 경로 데이터를 새 필드로 실어 클라이언트가 재사용하게 만드는 타입·API 응답 구조 변경이 필요해 이번 라운드 범위를 넘는다.
+4. 한도 미확인 — 관광공사 API와 마찬가지로 카카오모빌리티 Directions의 일일/분당 호출 한도가 코드·문서 어디에도 없다. 옵션 A 라운드의 "관광공사 API 한도 미확인" 리스크와 같은 유형의 리스크를 마감(9/21) 전에 검증 없이 하나 더 늘리지 않기로 했다.
+
+→ **채택**: 기존 `calculateHaversineDistance`로 계산한 구간 거리를 가정 평균 속도로 환산한 추정 이동 시간을 코드로 계산해 일정표에 삽입한다. 새 외부 API 호출 없음, `/api/ai/curate` 지연시간 영향 없음. 도로 기반 실제 이동 시간(옵션 E-2)은 다음 라운드 후보로 명시적으로 남긴다 — 착수 전 카카오모빌리티 호출 한도 확인과 지연시간 재실측이 선행돼야 한다.
+
+**R2-2 — 가정 속도 표**: `estimateTravelMinutes(distanceKm)`(`lib/ai.ts`)가 아래 표로 분 단위 이동 시간을 계산한다. 실제 후보 분포를 측정해 보정한 `DISTANCE_THRESHOLD_KM`과 달리 이 표는 PM 판단으로 정한 가정치이므로 코드 주석과 UI 문구 양쪽에 "가정치/추정치"임을 명시한다.
+
+| 구간 거리 | 가정 이동 수단 | 가정 속도 | 근거 |
+|---|---|---|---|
+| < 1km | 도보 | 4km/h | 강릉 원도심/해안 구간은 1km 이내면 도보가 자연스러움 |
+| ≥ 1km | 차량 | 25km/h | 시내 신호·정차·주차 탐색 감안한 보수적 평균. 직선거리 기준이라(실제 도로거리는 통상 직선의 1.3~1.5배) 속도를 낮게 잡아 부분적으로 상쇄 |
+| (공통) 최솟값 | — | — | 계산 결과가 5분 미만이면 5분으로 올림 (도보 이동·주차·승하차 오버헤드 반영) |
+
+**구현**: `buildSchedule`이 연속된 두 스팟 사이 거리를 `calculateHaversineDistance`(기존과 동일 함수, 신규 계산 로직 없음)로 구해 `estimateTravelMinutes`에 넣고, 결과를 `cursor`에 더해 다음 스팟 시작 시각을 뒤로 민 뒤, 이동 구간 자체를 일정표 배열에 별도 원소(`이동 약 12분 (2.1km · 추정)` 형식)로 삽입한다. 반환 타입은 그대로 `string[]`이라 `CurationRoute.schedule`/`types/index.ts` 변경이 없다. `finalizeRoute`는 `request.startHour`가 지정된 경우에만(일정표가 실제로 생성되는 경우만) `withTravelTimeTip`으로 tips에 "도보(4km/h)·차량(25km/h) 평균 속도를 가정한 추정치" 안내 1줄을 추가한다 — 일정표가 없는 응답에는 이 문구를 먼저 노출하지 않는다.
+
+**회귀 방지**: `validateRoute`의 거리 판정(`totalSequentialDistance`, `DISTANCE_THRESHOLD_KM`, `checks`의 `distance` 항목)은 이번 변경에서 전혀 건드리지 않았다 — 이동 시간은 표시 전용 파생값이며 검증 조건에 추가하지 않는다(AI 에이전트 설계 규칙 2·3 연장). `RouteMap.tsx`, `app/api/directions/route.ts`도 변경하지 않았다.

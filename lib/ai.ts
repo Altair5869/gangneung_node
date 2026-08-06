@@ -589,18 +589,56 @@ function formatClock(totalMinutes: number): string {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
+// 이동 시간은 실측이 아니라 가정한 평균 속도(도보/차량)로 하버사인 거리를 환산한 추정치다.
+// DISTANCE_THRESHOLD_KM처럼 실제 후보 분포를 측정해 보정한 값이 아니므로 "실측"이라고 표기하지 말 것
+// (옵션 E, docs/AGENT_DESIGN.md 참고). 직선거리를 쓰기 때문에 실제 도로 이동 시간보다 낮게 나올 수
+// 있어, 차량 속도를 시내 평균보다 보수적으로 낮게(25km/h) 잡아 일부 상쇄한다.
+const WALK_THRESHOLD_KM = 1;
+const WALK_SPEED_KMH = 4;
+const DRIVE_SPEED_KMH = 25;
+const MIN_TRAVEL_MIN = 5;
+
+function estimateTravelMinutes(distanceKm: number): number {
+  if (distanceKm <= 0) return 0;
+  const speed = distanceKm < WALK_THRESHOLD_KM ? WALK_SPEED_KMH : DRIVE_SPEED_KMH;
+  return Math.max(MIN_TRAVEL_MIN, Math.round((distanceKm / speed) * 60));
+}
+
 // 같은 이유로(수치 환각 방지), 시작 시간이 주어졌을 때의 예상 일정도 Claude가 아니라
 // 코드가 계산한다. 워크스팟은 요청한 업무 시간만큼, 식당은 1시간, 관광지/휴식은 45분으로 고정 배분.
+// 스팟 사이 이동 구간은 하버사인 거리를 estimateTravelMinutes로 환산한 추정치이며(옵션 E),
+// 별도 배열 원소로 삽입하고 다음 스팟 시작 시각을 그만큼 뒤로 민다.
 function buildSchedule(spots: RouteStop[], request: CurationRequest, startHour: number): string[] {
   let cursor = startHour * 60;
-  return spots.map((spot) => {
+  const result: string[] = [];
+  spots.forEach((spot, i) => {
+    if (i > 0) {
+      const prev = spots[i - 1];
+      const distanceKm = calculateHaversineDistance(prev.lat, prev.lng, spot.lat, spot.lng);
+      const travelMin = estimateTravelMinutes(distanceKm);
+      cursor += travelMin;
+      result.push(`이동 약 ${travelMin}분 (${distanceKm.toFixed(1)}km · 추정)`);
+    }
     const blockMin = isLifeSpot(spot) ? (spot.category === "food" ? 60 : 45) : request.duration * 60;
     const start = formatClock(cursor);
     cursor += blockMin;
     const end = formatClock(cursor);
     const label = isLifeSpot(spot) ? spot.name : `${spot.name} (업무)`;
-    return `${start}~${end} ${label}`;
+    result.push(`${start}~${end} ${label}`);
   });
+  return result;
+}
+
+// withDistanceTip과 마찬가지로 "추정치를 사실처럼 보이지 않게" 정정하는 문구를 추가한다(옵션 E).
+// 일정표(schedule)가 실제로 생성될 때만 의미가 있으므로 startHour가 있을 때만 붙인다.
+function withTravelTimeTip(route: CurationRoute): CurationRoute {
+  return {
+    ...route,
+    tips: [
+      ...route.tips,
+      "일정표의 이동 시간은 도보(4km/h)·차량(25km/h) 평균 속도를 가정한 추정치입니다 — 실제 소요 시간과 다를 수 있습니다.",
+    ],
+  };
 }
 
 // attempts: 실제 생성(Claude 호출) 횟수. 조기 종료 폴백 경로는 1회 생성이므로 1이고,
@@ -612,7 +650,8 @@ function finalizeRoute(route: CurationRoute, request: CurationRequest, attempts:
     verification: buildVerification(withDistance, request, attempts),
   };
   if (request.startHour === undefined) return verified;
-  return { ...verified, schedule: buildSchedule(verified.spots, request, request.startHour) };
+  const withTip = withTravelTimeTip(verified);
+  return { ...withTip, schedule: buildSchedule(withTip.spots, request, request.startHour) };
 }
 
 // Node1(생성)→Node2(코드 기반 검증)→불합격 시 사유를 프롬프트에 실어 재시도(최대 MAX_ATTEMPTS회)
