@@ -355,3 +355,33 @@ PRD 검토 중 `filterByPreferences`(사전 필터)와 `validateRoute`(Node 2 �
 **구현**: `buildSchedule`이 연속된 두 스팟 사이 거리를 `calculateHaversineDistance`(기존과 동일 함수, 신규 계산 로직 없음)로 구해 `estimateTravelMinutes`에 넣고, 결과를 `cursor`에 더해 다음 스팟 시작 시각을 뒤로 민 뒤, 이동 구간 자체를 일정표 배열에 별도 원소(`이동 약 12분 (2.1km · 추정)` 형식)로 삽입한다. 반환 타입은 그대로 `string[]`이라 `CurationRoute.schedule`/`types/index.ts` 변경이 없다. `finalizeRoute`는 `request.startHour`가 지정된 경우에만(일정표가 실제로 생성되는 경우만) `withTravelTimeTip`으로 tips에 "도보(4km/h)·차량(25km/h) 평균 속도를 가정한 추정치" 안내 1줄을 추가한다 — 일정표가 없는 응답에는 이 문구를 먼저 노출하지 않는다.
 
 **회귀 방지**: `validateRoute`의 거리 판정(`totalSequentialDistance`, `DISTANCE_THRESHOLD_KM`, `checks`의 `distance` 항목)은 이번 변경에서 전혀 건드리지 않았다 — 이동 시간은 표시 전용 파생값이며 검증 조건에 추가하지 않는다(AI 에이전트 설계 규칙 2·3 연장). `RouteMap.tsx`, `app/api/directions/route.ts`도 변경하지 않았다.
+
+## workStyle ↔ 랭킹 매핑 (2026-08-06, 옵션 F)
+
+**배경**: `CurationRequest.workStyle`은 `generateOnce`의 프롬프트 문자열 보간(`업무 스타일: ${request.workStyle}`)에만 쓰였고, 필터·랭킹·검증 어디에도 관여하지 않았다(원 진단 W7). "화상 미팅을 골라도 소음/콘센트 가중치가 안 달라진다"는 문제를 코드 로직에 연결한다.
+
+**적용 경로 제약 (rankCandidates 두 경로 중 congestion 분기에만)**: `rankCandidates`(`lib/ai.ts`)는 `buildSearchQuery(request)`가 비었는지에 따라 두 경로로 갈린다.
+- **검색 쿼리 있음**(freeText 또는 "뷰 좋은 곳"/"카페인 충전 가능" 선택) → Upstash 벡터 랭킹(옵션 D-①). `generateOnce`의 `freeTextLine`이 Claude에게 "목록 상위 3~5개 안에서 고르라"고 명시적으로 약속하므로, 여기에 workStyle 재정렬을 얹으면 이 계약이 깨진다. **이 경로는 건드리지 않았다.**
+- **검색 쿼리 없음**(freeText 없음 + 검증불가 선호 미선택, 기본/다수 시나리오) → congestion 오름차순 정렬만 하던 분기. **workStyle 가중치는 이 분기에만** 2차 정렬 키로 추가했다. congestion이 항상 1차 키이고(`congestionDiff !== 0`이면 즉시 반환), 같은 congestion 등급 내부에서만 `workStyleRankScore`로 재정렬한다 — congestion 순서 자체를 대체하지 않는다.
+
+**매핑 대상 축소 — 4개 중 2개만**: `WORK_STYLE_BOOST_STYLES`(`lib/ai.ts`)에 아래 2개만 등록했다. 나머지 2개는 근거 불명확이라 이번 라운드에서 제외하고 매핑 없음(=기존과 동일한 congestion 정렬)으로 명시적으로 남겼다. 이 문자열 리터럴은 `app/ai-curator/page.tsx`의 `WORK_STYLES` value와 정확히 일치해야 하며(W2 재발 방지 — 이전에 라벨 불일치로 실제 필터가 조용히 빠진 전례가 있음), 두 파일의 4개 값을 전수 대조해 확인했다.
+
+| workStyle 값 | 소음 후순위 (`언급됨-시끄러움`) | 콘센트 우선 (`충분함`\|`제한적`) | 근거 |
+|---|---|---|---|
+| `"집중 코딩/개발 작업"` | O | O | 장시간 집중 + 노트북 배터리 소모 |
+| `"화상 미팅 및 회의"` | O | O | 통화 음질(소음 민감) + 노트북·주변기기 지속 전원 |
+| `"문서 작업 및 기획"` | — | — | 매핑 없음 (근거 불명확, 이번 라운드 제외) |
+| `"창의적 작업 및 아이디어 발산"` | — | — | 매핑 없음 (근거 불명확, 이번 라운드 제외) |
+
+**정렬 점수 (`workStyleRankScore`, `lib/ai.ts`)**: `power.level`이 `충분함`/`제한적`이면 -1, `noise === "언급됨-시끄러움"`이면 +1, 낮을수록 우선. 단일 stable sort comparator 안에서 congestion 다음의 2차 키로만 쓴다. `power.level`은 사실 기반(CLAUDE.md 데이터 규칙 1)이라 정렬 키로 써도 되지만, "콘센트 필수"를 사용자가 직접 체크하지 않은 이상 필터(제외)로는 쓰지 않는다 — pass/fail 게이트가 아니라 순서 조정만.
+
+**데이터 희소성 — "연결은 되지만 효과가 작을 수 있다"를 미리 인정**: 실측 분포(숙소 제외 216곳, 2026-07-27 기준):
+
+| 필드 | 실측 분포 | workStyle 가중치가 실제로 영향 주는 스팟 수 |
+|---|---|---|
+| `noise` | `언급없음` 208 / `언급됨-조용함` 6 / `언급됨-시끄러움` 2 | 최대 2곳만 후순위로 미룸 |
+| `power.level` | 실측 24곳만 `충분함`/`제한적`/`없음`, 나머지 ~207곳은 `null` | 최대 24곳을 우선함 |
+
+`power` 가중치는 24/231 ≈ 10%로 눈에 띄는 재정렬 효과가 있다. `noise` 가중치는 표본이 2곳뿐이라 재정렬 폭이 작지만, 죽은 코드 경로는 아니다("진짜지만 작은 기능"). `VERIFIED_SPOTS`가 늘어나면 두 표본 모두 함께 커지는 구조다.
+
+**pass/fail 게이트가 아니라 랭킹 참고로만 (옵션 C 전례 재사용)**: `validateRoute`에 새 pass/fail 조건을 추가하지 않았다. 대신 workStyle 가중치가 실제로 적용된 경우(=`WORK_STYLE_BOOST_STYLES.has(request.workStyle) && buildSearchQuery(request) === ""` — `rankCandidates`가 boost를 실제로 타는 조건과 동일)에만 `checks`에 `id: "workstyle-ranking"`, `status: "skipped"` 정보성 항목 1개를 추가한다. 매핑 없는 스타일이거나 벡터 랭킹 경로라 적용이 안 된 경우엔 이 항목 자체를 추가하지 않는다 — "적용 안 됐는데 적용된 것처럼" 보이는 오탐을 막기 위함. `unverifiable-preference`와 마찬가지로 문구는 "참고"이지 "검증"이 아님을 명시하고, "확정"/"보장" 단어를 쓰지 않는다. `RouteVerificationCard.tsx`는 `checks[]`를 id-agnostic하게 렌더링하는 기존 구조라 컴포넌트 코드 변경 없이 새 check가 그대로 표시된다.

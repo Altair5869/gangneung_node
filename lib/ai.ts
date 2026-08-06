@@ -65,6 +65,23 @@ const CHECKABLE_PREFERENCES = ["조용한 환경", "콘센트 필수", "무장�
 // "검사하지 않음(skipped)"으로 정직하게 노출하기 위해서만 사용한다 (docs/AGENT_DESIGN.md 매핑표).
 const UNVERIFIABLE_PREFERENCES = ["뷰 좋은 곳", "카페인 충전 가능"] as const;
 
+// 옵션 F(2026-08-06): request.workStyle 4개 값 중 소음/콘센트와 인과관계가 뚜렷한 2개만
+// rankCandidates의 congestion 정렬 2차 키로 연결한다("문서 작업 및 기획"/"창의적 작업 및
+// 아이디어 발산"은 근거 불명확해 이번 라운드 제외, docs/AGENT_DESIGN.md 1-3절). 여기 문자열
+// 리터럴은 app/ai-curator/page.tsx의 WORK_STYLES value와 정확히 일치해야 한다(W2 재발 방지) —
+// 어긋나면 매핑이 조용히 빠지고 화면에는 아무 에러도 안 뜬다.
+const WORK_STYLE_BOOST_STYLES = new Set(["집중 코딩/개발 작업", "화상 미팅 및 회의"]);
+
+// 콘센트 확인 스팟을 우선(-1), 소음 확정 "언급됨-시끄러움" 스팟을 후순위(+1)로 미루는 2차 정렬
+// 점수. pass/fail 게이트가 아니라 congestion 등급 내부 정렬에만 쓴다 — noise는 확정 사실이 아닌
+// 신호이고(CLAUDE.md 데이터 규칙 3), workStyle만으로 콘센트 미확인 스팟을 탈락시키면 안 되므로
+// (사용자가 "콘센트 필수"를 직접 체크하지 않은 경우) 필터가 아니라 정렬로만 반영한다.
+function workStyleRankScore(spot: WorkSpot): number {
+  const powerConfirmed = spot.power.level === "충분함" || spot.power.level === "제한적";
+  const noisyConfirmed = spot.noise === "언급됨-시끄러움";
+  return (powerConfirmed ? -1 : 0) + (noisyConfirmed ? 1 : 0);
+}
+
 // 옵션 D-①(2026-08-06): 구조화된 필드가 없어 preFilter/validateRoute로는 검증할 수 없는
 // UNVERIFIABLE_PREFERENCES도, 랭킹(임베딩 유사도 검색) 단계에서는 freeText와 동등하게 참고할 수
 // 있다 — "검증"이 아니라 "정렬 참고"이므로 이 두 선호를 검증 로직에 편입하는 것과는 다르다.
@@ -148,8 +165,17 @@ async function rankCandidates(spots: WorkSpot[], request: CurationRequest): Prom
     }
     return semanticSort(searchQuery, spots);
   }
+  // 옵션 F: 검색 쿼리가 없는 이 분기(벡터 랭킹 미개입)에서만 workStyle을 2차 정렬 키로 얹는다.
+  // congestion이 항상 1차 키다 — workStyleRankScore는 같은 congestion 등급 내부에서만 순서를
+  // 바꾸고, 등급 자체를 건너뛰게 하지 않는다(요구사항 4). 매핑 안 된 workStyle이면 boost가
+  // false라 아래는 항상 congestionDiff만으로 정렬돼 기존 동작과 완전히 동일하다(회귀 없음).
   const order: Record<string, number> = { low: 0, medium: 1, high: 2 };
-  return [...spots].sort((a, b) => (order[a.congestion ?? "medium"] ?? 1) - (order[b.congestion ?? "medium"] ?? 1));
+  const boostWorkStyle = WORK_STYLE_BOOST_STYLES.has(request.workStyle);
+  return [...spots].sort((a, b) => {
+    const congestionDiff = (order[a.congestion ?? "medium"] ?? 1) - (order[b.congestion ?? "medium"] ?? 1);
+    if (congestionDiff !== 0 || !boostWorkStyle) return congestionDiff;
+    return workStyleRankScore(a) - workStyleRankScore(b);
+  });
 }
 
 // Claude에게 넘기는 워크스팟 후보를 좁게 유지해야, 이 후보들의 좌표를 기준으로 삼는
@@ -547,6 +573,19 @@ function validateRoute(
       label: activeUnverifiable.join(" · "),
       status: "skipped",
       detail: "구조화된 데이터가 없어 자동 검증 대상이 아닙니다 (AI 추천 시 참고만 함)",
+    });
+  }
+
+  // 옵션 F: rankCandidates가 실제로 workStyle 가중치를 적용한 경우(매핑 대상 스타일 +
+  // 검색 쿼리 없음 — rankCandidates의 congestion 정렬 분기 조건과 정확히 동일)에만 이 항목을
+  // 추가한다. pass/fail 게이트가 아니므로 항상 "skipped"이며, "확정"/"보장" 단어를 쓰지 않는다.
+  const workStyleRankingApplied = WORK_STYLE_BOOST_STYLES.has(request.workStyle) && buildSearchQuery(request) === "";
+  if (workStyleRankingApplied) {
+    checks.push({
+      id: "workstyle-ranking",
+      label: `업무 스타일 참고: ${request.workStyle}`,
+      status: "skipped",
+      detail: "콘센트가 확인된 곳을 우선하고 소음이 시끄럽다고 언급된 곳을 후순위로 정렬에 참고했습니다 (검증 아님)",
     });
   }
 

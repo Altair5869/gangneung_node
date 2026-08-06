@@ -66,7 +66,8 @@ export interface RouteCheck {
     | "power"
     | "barrier-free"
     | "noise"
-    | "unverifiable-preference";
+    | "unverifiable-preference"
+    | "workstyle-ranking";
   label: string;   // 화면 표기용 (한국어)
   status: CheckStatus;
   detail?: string; // 예: "8.2 / 10 km · 직선 기준"
