@@ -65,6 +65,17 @@ const CHECKABLE_PREFERENCES = ["조용한 환경", "콘센트 필수", "무장�
 // "검사하지 않음(skipped)"으로 정직하게 노출하기 위해서만 사용한다 (docs/AGENT_DESIGN.md 매핑표).
 const UNVERIFIABLE_PREFERENCES = ["뷰 좋은 곳", "카페인 충전 가능"] as const;
 
+// 옵션 D-①(2026-08-06): 구조화된 필드가 없어 preFilter/validateRoute로는 검증할 수 없는
+// UNVERIFIABLE_PREFERENCES도, 랭킹(임베딩 유사도 검색) 단계에서는 freeText와 동등하게 참고할 수
+// 있다 — "검증"이 아니라 "정렬 참고"이므로 이 두 선호를 검증 로직에 편입하는 것과는 다르다.
+// freeText가 없어도 이 선호 중 하나만 선택되면 쿼리가 비지 않아야, "뷰 좋은 곳"만 고른 요청도
+// 랭킹에 반영된다(요구사항 R1). validateRoute의 unverifiable-preference 판정(skipped)은 이
+// 함수와 무관하게 그대로 유지된다.
+function buildSearchQuery(request: CurationRequest): string {
+  const activeUnverifiable = UNVERIFIABLE_PREFERENCES.filter((p) => request.preferences.includes(p));
+  return [request.freeText?.trim(), ...activeUnverifiable].filter((s): s is string => !!s).join(" ");
+}
+
 // filterByPreferences의 "5곳 미만이면 전체 무시" 폴백과 curateRoute의 조기 종료 분기가
 // 반드시 같은 임계값을 봐야 하므로 상수로 공유한다 (2026-07-27, P2 항목 1).
 const MIN_PREFERENCE_MATCHES = 5;
@@ -112,13 +123,15 @@ async function semanticSort<T extends RouteStop>(query: string, spots: T[]): Pro
   }
 }
 
-// 자유 텍스트가 있으면 먼저 사전 색인된 Upstash Vector에서 쿼리 1건만 임베딩해 유사도 검색을
-// 시도한다 (문서 재임베딩 없음). 색인이 없거나(미설정) 실패하면 기존처럼 후보 전체를 그 자리에서
-// 재임베딩하는 semanticSort로 폴백한다 — 매 요청 문서 재임베딩을 없애는 게 이 경로의 목적이다.
+// freeText(+ 옵션 D-①: 선택된 UNVERIFIABLE_PREFERENCES를 합성한 검색 쿼리)가 있으면 먼저 사전
+// 색인된 Upstash Vector에서 쿼리 1건만 임베딩해 유사도 검색을 시도한다 (문서 재임베딩 없음).
+// 색인이 없거나(미설정) 실패하면 기존처럼 후보 전체를 그 자리에서 재임베딩하는 semanticSort로
+// 폴백한다 — 매 요청 문서 재임베딩을 없애는 게 이 경로의 목적이다. 두 경로 모두 동일한
+// searchQuery를 받아야 Upstash 설정 여부에 따라 결과가 갈리는 회귀가 생기지 않는다.
 async function rankCandidates(spots: WorkSpot[], request: CurationRequest): Promise<WorkSpot[]> {
-  const freeText = request.freeText?.trim();
-  if (freeText) {
-    const vectorIds = await queryTopK(freeText, Math.max(spots.length, 30));
+  const searchQuery = buildSearchQuery(request);
+  if (searchQuery) {
+    const vectorIds = await queryTopK(searchQuery, Math.max(spots.length, 30));
     if (vectorIds) {
       const byId = new Map(spots.map((s) => [s.id, s]));
       const ranked = vectorIds.map((id) => byId.get(id)).filter((s): s is WorkSpot => s !== undefined);
@@ -128,12 +141,12 @@ async function rankCandidates(spots: WorkSpot[], request: CurationRequest): Prom
       // rest(원본 순서)만 반환되던 것이 문제였다. 그러면 랭킹이 사실상 무력화됐는데도 프롬프트는
       // "상위 3~5개 안에서 고르라"는 거짓 전제를 계속 강제하게 된다. ranked가 비어 있으면 벡터
       // 검색 결과를 신뢰하지 않고 semanticSort(실시간 재임베딩)로 폴백한다 (2026-07-27, P2 항목 3).
-      if (ranked.length === 0) return semanticSort(freeText, spots);
+      if (ranked.length === 0) return semanticSort(searchQuery, spots);
       const rankedIds = new Set(ranked.map((s) => s.id));
       const rest = spots.filter((s) => !rankedIds.has(s.id));
       return [...ranked, ...rest];
     }
-    return semanticSort(freeText, spots);
+    return semanticSort(searchQuery, spots);
   }
   const order: Record<string, number> = { low: 0, medium: 1, high: 2 };
   return [...spots].sort((a, b) => (order[a.congestion ?? "medium"] ?? 1) - (order[b.congestion ?? "medium"] ?? 1));
@@ -303,8 +316,13 @@ async function generateOnce(
   const feedbackText = retryFeedback
     ? `\n\n[이전 추천 재검토 필요]\n${retryFeedback}\n위 문제를 피해서 다른 장소로 다시 동선을 구성해주세요.`
     : "";
-  const freeTextLine = request.freeText
-    ? `\n자유 요청사항: "${request.freeText}"\n중요: 워크스팟 후보 목록은 이 요청과의 관련도가 높은 순서로 정렬되어 있습니다. 다른 제약 조건(콘센트 등) 위반이 없는 한, 반드시 목록 상위 3~5개 안에서 workSpotId를 고르세요. 하위권 후보는 이 요청과 관련이 적으니 우선순위에서 제외하세요. 자유 요청사항과 관련된 특징(예: 바다뷰)은 후보의 '설명' 필드에 실제로 근거가 있을 때만 언급하고, 근거 없이 지어내지 마세요.`
+  // 옵션 D-①: 정렬 안내 문구 노출 조건을 freeText 단독 체크에서 "합성 검색 쿼리(freeText +
+  // 선택된 UNVERIFIABLE_PREFERENCES)가 비어있지 않음"으로 넓힌다 — rankCandidates가 실제로
+  // 랭킹 순서를 바꾸는 조건과 일치시켜야, "뷰 좋은 곳"만 선택했을 때도 Claude가 정렬 사실을
+  // 알고 상위 후보를 우선하게 된다(freeText 없이 이 선호만 선택하면 아래 quote 줄은 생략).
+  const searchQuery = buildSearchQuery(request);
+  const freeTextLine = searchQuery
+    ? `${request.freeText ? `\n자유 요청사항: "${request.freeText}"` : ""}\n중요: 워크스팟 후보 목록은 이 요청과의 관련도가 높은 순서로 정렬되어 있습니다. 다른 제약 조건(콘센트 등) 위반이 없는 한, 반드시 목록 상위 3~5개 안에서 workSpotId를 고르세요. 하위권 후보는 이 요청과 관련이 적으니 우선순위에서 제외하세요. 자유 요청사항과 관련된 특징(예: 바다뷰)은 후보의 '설명' 필드에 실제로 근거가 있을 때만 언급하고, 근거 없이 지어내지 마세요.`
     : "";
 
   const response = await client.messages.create({
