@@ -312,3 +312,22 @@ PRD 검토 중 `filterByPreferences`(사전 필터)와 `validateRoute`(Node 2 �
 - 실측 24곳은 `실측 확인`, 그 외는 `API 제공` 배지로만 구분한다(`measured: false`를 "검증됨"으로 오인시키지 않기 위함).
 
 **거리 표기 정정**: `withDistanceTip`의 `실제 총 이동 거리: 약 X km`를 `총 이동 거리: 약 X km (직선 기준)`으로 고쳤다. 같은 화면의 `RouteMap`은 카카오모빌리티 도로 경로를 그리는데 팁은 하버사인 직선 합계를 "실제"라고 불러 두 거리 개념이 뒤섞여 있었다. 이동 시간 반영·도로 거리 교체는 옵션 E 범위이므로 표기만 정정했고, `validateRoute`의 임계값 판정은 하버사인 그대로다(AI 규칙 2).
+
+## 무장애 세부 필드 노출 (2026-08-06, 옵션 I)
+
+**배경**: `WorkSpot.barrierFree`는 `wheelchair`/`elevator`/`restroom`/`parking`/`exit` 5개 필드로 구성되는데, `/spots/[id]` 상세 페이지는 이미 5개 전부를 배지로 보여주는 반면 AI 큐레이터 경로(필터·검증·`RouteVerificationCard`·목록 필터)는 `exit` 파생값(`isBarrierFree()`) 1개만 써 왔다. 이번 라운드는 "검증 게이트를 늘리는 것"이 아니라 **이미 수집된 데이터를 AI 큐레이터 결과 화면에도 정직하게 더 보여주는 것**으로 범위를 좁혔다(옵션 C "성공해도 근거를 보여준다" 원칙의 연장).
+
+**R2 결정 — 왜 `exit`만 pass/fail 게이트로 유지하는가**: `wheelchair` 필드는 관광공사 원본 API에서 "휠체어 이용 가능"이 아니라 "휠체어 **대여** 서비스" 여부다(실제 응답 예: `"대여위치 : 안내 데스크, 휠체어 종류 : 수동 휠체어, 개수 : 1대"` — 접근성 서술이 아니라 대여처 안내문). `wheelchair: true`를 "휠체어 이용자 전용 동선"류 pass 조건으로 쓰면 대여 서비스 존재를 접근성 존재로 둔갑시키는 것이라 채택하지 않았다. 진짜 접근성 신호는 출입구 단차/경사로/자동문을 담는 `exit`이며, 이미 `isBarrierFree()`/`validateRoute`의 유일한 판정 기준이다 — **이번 라운드에서 이 판정 로직 라인은 전혀 바꾸지 않았다** (git diff로 확인 가능). `elevator`/`restroom`/`parking`은 의미가 명확해 오독 위험은 없지만, 새 `CHECKABLE_PREFERENCES` 항목으로 승격하면 "선호 조건 조기 종료 폴백"(위 2026-07-27 절)의 임계값(`MIN_PREFERENCE_MATCHES=5`) 여유가 더 깎일 위험이 있어 이번 라운드에서는 하드 필터로 승격하지 않았다 — 표시(evidence)로만 확장했다.
+
+**구현**: `SpotEvidence`에 optional `barrierFreeDetail?: WorkSpot["barrierFree"]`를 추가하고 `buildEvidence()`가 가공 없이 그대로 싣는다. `RouteVerificationCard`는 `spot.barrierFree ?? ev.barrierFreeDetail`을 `lib/spot-visuals.ts`의 `BARRIER_FREE_FIELDS`(`{ key, label }[]`, `/spots/[id]`와 공유)로 순회해 5개 배지를 그린다. `false`/`undefined`는 `bad`(빨강)가 아니라 취소선+회색(`/spots/[id]`와 동일 원칙) — 편의시설 부재는 위반이 아니라 정보이기 때문이다. `wheelchair` 배지 라벨은 "휠체어 대여"로 고정하고 "접근"/"이용 가능" 등 접근성을 암시하는 문구와 절대 같은 줄에 섞지 않는다.
+
+**R6 — 라벨 중복 정의 방지**: `lib/verified-spots.ts:9`에 기록된 재발 이력(barrierFree 병합 로직을 두 곳에서 각자 구현하다 한쪽만 빠짐, 2026-07-28)과 같은 유형의 사고를 막기 위해, 5개 필드의 `{ key, label }` 배열을 `lib/spot-visuals.ts`의 `BARRIER_FREE_FIELDS`로 뽑아 `/spots/[id]`와 `RouteVerificationCard`가 같은 소스를 참조하게 했다(둘 다 이 상수를 import).
+
+**R3 — `guidesystem`(유도 안내 시스템) 처리**: 타입에는 있었지만 `mapBarrierFreeToWorkSpot`이 파싱하지 않아 죽어 있던 필드. 2026-08-06 관광공사 무장애 API(`KorWithService2`)를 직접 호출해 확인:
+- 목록 API(`areaBasedList2`)는 애초에 wheelchair/exit/elevator/restroom/parking/guidesystem 키 자체를 반환하지 않는다(일반 관광정보 스키마와 동일 — 50~100건 표본에서 0건).
+- 상세 API(`detailWithTour2`)는 이 필드들을 반환하지만, 강릉시 지역 관광지 400건(페이지 4개, `areaBasedList2`로 얻은 contentId 전수) 전수 조회 결과 **`guidesystem`이 400건 중 0건 비어있지 않았다.** 같은 표본에서 `wheelchair`는 최소 3건 이상 실값이 확인된 것과 대조적이다.
+- **결정: (B) 채택 — `BarrierFreeItem.guidesystem` 타입 필드를 제거**했다(`types/index.ts`, 제거 사유 주석 남김). "타입만 있고 실제로는 항상 비어있는 필드"를 남겨두면 규칙 1·2가 경계하는 "수집하는 척하는 필드"와 같은 부류의 위험이라 pm-analyst 권고 기준(응답이 비어 있으면 (B))을 그대로 따랐다.
+
+**R4 — 목록 필터 확장**: `SpotsClient.tsx`에 `elevator`/`restroom`/`parking` 필터 칩을 필드 의미에 1:1 대응하는 정직한 라벨로 추가했다(`무장애`라는 뭉뚱그린 이름 아래 숨기지 않음). 기존 "무장애"(`exit` 기준) 토글은 변경 없음. `wheelchair` 필터 칩은 R2와 같은 이유로 추가하지 않았다.
+
+**부수 발견 — 이번 라운드 범위 밖, 별도 확인 필요**: R3 조사 중 `lib/spot-corpus.ts`의 `buildSpotCorpus`가 부르는 `getBarrierFreeList`(목록 API)에는 애초에 barrierFree 5개 필드 키가 없다는 것을 확인했다(위 R3 첫 항목과 동일 사실). 즉 **AI 큐레이터가 실제로 쓰는 대량 코퍼스에서 `VERIFIED_SPOTS`(24곳) 밖의 스팟은 5개 필드가 사실상 항상 `false`**로 채워지고, 실제 `exit: true` 등 신호는 거의 전부 `VERIFIED_SPOTS`의 수동 실측(24곳 중 16곳이 `exit:true`)에서 나온다. 단건 상세 조회(`getSpotById` → `getBarrierFreeDetail` → `detailWithTour2`)만 이 필드들을 실제로 채운다. 값 자체가 가짜는 아니라서(빈 응답 → `false`는 정당한 매핑) 데이터 규칙 위반은 아니지만, "barrierFree는 실데이터"(CLAUDE.md 규칙 4)라는 문서화된 전제가 대량 코퍼스 경로에서는 사실상 `VERIFIED_SPOTS` 의존으로 크게 제한된다는 뜻이라 `docs/DATA_STATUS.md` "남은 일"에 별도 항목으로 남겼다. 고치려면 `buildSpotCorpus`가 무장애 후보마다 `getBarrierFreeDetail`을 추가 호출하도록 바꿔야 하는데, 이번 옵션 I(표시 확장) 범위를 벗어나는 별도 작업이라 이번 라운드에서는 손대지 않았다.

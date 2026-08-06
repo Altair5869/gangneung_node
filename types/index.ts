@@ -79,7 +79,12 @@ export interface SpotEvidence {
   wifi: string;        // wifiLabel() 결과 그대로
   power: string;       // powerLabel() 결과 그대로
   noise: string;       // noiseLabel() 결과 그대로
-  barrierFree: string; // "출입 가능 확인" | "정보 없음"
+  barrierFree: string; // "출입 가능 확인" | "정보 없음" — exit 기준 요약(validateRoute와 동일 기준), 하위호환 유지
+  // 옵션 I(2026-08-06): wheelchair/elevator/restroom/parking/exit 5개 필드 원본을 가공 없이
+  // 그대로 싣는다(WorkSpot.barrierFree 형태 그대로). optional이라 이 필드가 없는 구버전
+  // 저장 플랜(localStorage/공유 링크)도 깨지지 않는다 — 없으면 렌더링 쪽에서 spots 배열의
+  // WorkSpot.barrierFree로 폴백한다(components/curator/RouteVerificationCard.tsx).
+  barrierFreeDetail?: WorkSpot["barrierFree"];
   measured: boolean;   // VERIFIED_SPOTS 24곳 여부
 }
 
@@ -147,5 +152,10 @@ export interface BarrierFreeItem extends TourismApiItem {
   elevator?: string;         // 엘리베이터
   restroom?: string;         // 장애인 화장실
   parking?: string;          // 장애인 주차
-  guidesystem?: string;      // 유도 안내 시스템
+  // guidesystem(유도 안내 시스템) 필드는 여기 두지 않는다. 관광공사 무장애 API
+  // (KorWithService2/detailWithTour2) 실응답을 2026-08-06 직접 호출해 확인한 결과, 강릉시
+  // 지역 관광지 400건(areaBasedList2로 얻은 contentId 전수, 4페이지)의 detailWithTour2
+  // 응답에서 guidesystem이 단 1건도 비어있지 않은 값을 반환하지 않았다(0/400) — 같은 표본에서
+  // wheelchair는 최소 3건 이상 실제 값이 확인된 것과 대조적으로 사실상 완전히 죽은 필드라
+  // 타입에서 제거했다(옵션 I R3 결정). docs/AGENT_DESIGN.md "무장애 세부 필드 노출" 절 참고.
 }

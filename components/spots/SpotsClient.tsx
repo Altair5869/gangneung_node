@@ -51,6 +51,13 @@ export default function SpotsClient({ allSpots }: { allSpots: WorkSpot[] }) {
   const [wifi, setWifi] = useState(false);
   const [power, setPower] = useState("");
   const [barrierFree, setBarrierFree] = useState(false);
+  // 옵션 I R4: elevator/restroom/parking은 exit 기준 "무장애" 토글과 별개로, 필드 의미와
+  // 1:1로 대응하는 독립 칩으로만 추가한다. wheelchair는 필터로 만들지 않는다 — "휠체어 대여
+  // 서비스" 여부라 접근성 필터로 쓰면 필드 의미를 왜곡하고, 실측상 거의 항상 비어있어 필터로도
+  // 실효성이 없다(옵션 I R2/R4 근거, lib/utils.ts의 isBarrierFree 주석 참고).
+  const [elevator, setElevator] = useState(false);
+  const [restroom, setRestroom] = useState(false);
+  const [parking, setParking] = useState(false);
   const [minScore, setMinScore] = useState(0);
 
   const filtered = useMemo(() => {
@@ -64,12 +71,17 @@ export default function SpotsClient({ allSpots }: { allSpots: WorkSpot[] }) {
       if (wifi && s.wifi.available !== true) return false;
       if (power && s.power.level !== power) return false;
       if (barrierFree && !isBarrierFree(s.barrierFree)) return false;
+      if (elevator && s.barrierFree?.elevator !== true) return false;
+      if (restroom && s.barrierFree?.restroom !== true) return false;
+      if (parking && s.barrierFree?.parking !== true) return false;
       if (minScore > 0 && calcScore(s) < minScore) return false;
       return true;
     });
-  }, [allSpots, query, category, noise, wifi, power, barrierFree, minScore]);
+  }, [allSpots, query, category, noise, wifi, power, barrierFree, elevator, restroom, parking, minScore]);
 
-  const isFiltered = !!(query || category || noise || wifi || power || barrierFree || minScore > 0);
+  const isFiltered = !!(
+    query || category || noise || wifi || power || barrierFree || elevator || restroom || parking || minScore > 0
+  );
 
   const reset = () => {
     setQuery("");
@@ -78,6 +90,9 @@ export default function SpotsClient({ allSpots }: { allSpots: WorkSpot[] }) {
     setWifi(false);
     setPower("");
     setBarrierFree(false);
+    setElevator(false);
+    setRestroom(false);
+    setParking(false);
     setMinScore(0);
   };
 
@@ -179,6 +194,9 @@ export default function SpotsClient({ allSpots }: { allSpots: WorkSpot[] }) {
               {[
                 { label: "WiFi", active: wifi, toggle: () => setWifi((v) => !v), color: "bg-primary border-primary", textOn: "text-on-primary" },
                 { label: "무장애", active: barrierFree, toggle: () => setBarrierFree((v) => !v), color: "bg-accent border-accent", textOn: "text-on-accent" },
+                { label: "엘리베이터", active: elevator, toggle: () => setElevator((v) => !v), color: "bg-primary border-primary", textOn: "text-on-primary" },
+                { label: "장애인 화장실", active: restroom, toggle: () => setRestroom((v) => !v), color: "bg-accent border-accent", textOn: "text-on-accent" },
+                { label: "장애인 주차", active: parking, toggle: () => setParking((v) => !v), color: "bg-primary border-primary", textOn: "text-on-primary" },
               ].map(({ label, active, toggle, color, textOn }) => (
                 <button
                   key={label}

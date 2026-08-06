@@ -1,6 +1,6 @@
 import { RouteStop, RouteVerification, WorkSpot, CheckStatus, isLifeSpot } from "@/types";
 import { cn } from "@/lib/utils";
-import { powerBadge } from "@/lib/spot-visuals";
+import { powerBadge, BARRIER_FREE_FIELDS } from "@/lib/spot-visuals";
 
 // 미확인(null)·언급없음은 "확정된 없음"이 아니므로 절대 bad(빨강)로 칠하지 않는다.
 // 회색 중립 배지로만 표기한다 (CLAUDE.md 데이터 규칙 1·3).
@@ -34,6 +34,13 @@ function noiseTone(spot?: WorkSpot): string {
   if (!spot || spot.noise === "언급없음") return `${NOISE_SIGNAL_BASE} border-border text-foreground/50`;
   if (spot.noise === "언급됨-시끄러움") return `${NOISE_SIGNAL_BASE} border-bad/40 text-bad/80`;
   return `${NOISE_SIGNAL_BASE} border-good/40 text-good/80`;
+}
+
+// 무장애 편의시설 부재는 "위반"이 아니라 "정보"이므로(CLAUDE.md 데이터 규칙 4 + R1 AC),
+// false/undefined를 bad(빨강) 계열로 칠하지 않는다. /spots/[id]와 동일하게 취소선+회색으로
+// 표기해 두 화면의 "없음" 표현이 어긋나지 않게 한다.
+function barrierFreeTone(value: boolean | undefined): string {
+  return value ? "bg-good/15 text-good" : "bg-muted text-foreground/40 line-through";
 }
 
 export default function RouteVerificationCard({
@@ -109,6 +116,10 @@ export default function RouteVerificationCard({
           </h3>
           {verification.evidence.map((ev) => {
             const spot = workSpotById.get(ev.spotId);
+            // spots 배열의 WorkSpot이 우선(항상 최신) — evidence.barrierFreeDetail은 spot을 못
+            // 찾은 예외적 경우를 위한 폴백이자, 구버전 저장 플랜(barrierFreeDetail 없음)에서도
+            // spot 쪽 barrierFree는 이미 존재했으므로 이 폴백 자체는 대부분 안 탄다.
+            const detail = spot?.barrierFree ?? ev.barrierFreeDetail;
             return (
               <div key={ev.spotId} className="space-y-2">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -132,14 +143,17 @@ export default function RouteVerificationCard({
                   <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", noiseTone(spot))}>
                     {ev.noise}
                   </span>
-                  <span
-                    className={cn(
-                      "text-xs px-2 py-0.5 rounded-full font-medium",
-                      ev.barrierFree === "출입 가능 확인" ? "bg-good/15 text-good" : NEUTRAL_BADGE
-                    )}
-                  >
-                    무장애 {ev.barrierFree}
-                  </span>
+                  {/* 무장애 5개 필드 전부 표시(옵션 I R1) — /spots/[id]와 동일한 라벨·순서를
+                      공유 상수(BARRIER_FREE_FIELDS)로 재사용한다. barrier-free check(validateRoute)
+                      판정 기준(exit만)은 이 배지들과 무관하게 그대로다 — 여기는 표시만 확장한 것. */}
+                  {BARRIER_FREE_FIELDS.map(({ key, label }) => (
+                    <span
+                      key={key}
+                      className={cn("text-xs px-2 py-0.5 rounded-full font-medium", barrierFreeTone(detail?.[key]))}
+                    >
+                      {label}
+                    </span>
+                  ))}
                 </div>
               </div>
             );

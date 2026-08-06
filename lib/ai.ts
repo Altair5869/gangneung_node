@@ -563,7 +563,11 @@ function buildEvidence(route: CurationRoute): SpotEvidence[] {
       wifi: wifiLabel(s.wifi.available),
       power: powerLabel(s.power.level),
       noise: noiseLabel(s.noise),
+      // barrier-free check(validateRoute)와 동일하게 exit만 기준으로 삼은 요약 — 판정 로직은
+      // 건드리지 않는다(옵션 I R2). barrierFreeDetail은 그 판정에 쓰이지 않는 5개 필드 원본을
+      // 가공 없이 그대로 실어 결과 화면(RouteVerificationCard)에 추가 정보로만 노출하기 위함이다.
       barrierFree: isBarrierFree(s.barrierFree) ? "출입 가능 확인" : "정보 없음",
+      barrierFreeDetail: s.barrierFree,
       measured: Boolean(s.tourismContentId && VERIFIED_CONTENT_IDS.has(s.tourismContentId)),
     }));
 }

@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { noiseLabel, congestionLabel, cn, isBarrierFree } from "@/lib/utils";
 import WorkEnvScore from "@/components/spots/WorkEnvScore";
-import { categoryLabel, categoryGradient, noiseBadge, congestionStyle } from "@/lib/spot-visuals";
+import { categoryLabel, categoryGradient, noiseBadge, congestionStyle, BARRIER_FREE_FIELDS } from "@/lib/spot-visuals";
 import { getSpotById } from "@/lib/spot-detail";
 
 export const dynamic = "force-dynamic";
@@ -125,14 +125,8 @@ export default async function SpotDetailPage({
               <div className="bg-primary/5 border border-primary/20 rounded-2xl p-5">
                 <h2 className="text-sm font-bold text-primary mb-3">무장애 편의시설</h2>
                 <div className="flex flex-wrap gap-2">
-                  {[
-                    { key: "wheelchair", label: "휠체어 대여" },
-                    { key: "elevator", label: "엘리베이터" },
-                    { key: "restroom", label: "장애인 화장실" },
-                    { key: "parking", label: "장애인 주차" },
-                    { key: "exit", label: "출입 가능" },
-                  ].map(({ key, label }) => {
-                    const available = spot.barrierFree?.[key as keyof typeof spot.barrierFree];
+                  {BARRIER_FREE_FIELDS.map(({ key, label }) => {
+                    const available = spot.barrierFree?.[key];
                     return (
                       <span
                         key={key}
