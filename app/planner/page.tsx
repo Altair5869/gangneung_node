@@ -35,6 +35,11 @@ function PlannerContent() {
         cancelled = true;
       };
     } else {
+      // localStorage에서 저장된 플랜 목록을 마운트/shareParam 변경 시 동기적으로 읽어오는
+      // 코드다. 이 규칙이 겨냥하는 "연쇄 렌더"(React 상태를 읽어 다시 React 상태를 세팅하는
+      // 패턴)가 아니라 외부 시스템(localStorage)과 한 번 동기화하는 것이므로 억제한다
+      // (2026-08-07, 옵션 K 요구사항 4·5 — 로직 재작성 금지, 억제 주석만 추가).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPlans(getPlans());
     }
   }, [shareParam]);

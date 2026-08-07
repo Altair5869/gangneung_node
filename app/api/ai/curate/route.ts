@@ -3,10 +3,14 @@ import { curateRoute } from "@/lib/ai";
 import { buildSpotCorpus, buildLifeSpotCorpus, buildNearbyLifeSpotCorpus } from "@/lib/spot-corpus";
 import { CurationRequest, WorkSpot, LifeSpot } from "@/types";
 
+// spots/lifeSpots는 워크스팟/라이프스팟 전체 객체가 아니라 id 문자열 배열이다. 클라이언트는
+// "이 id들을 후보로 써 달라"는 힌트만 보내고, 실제 필드 값은 아래에서 서버 코퍼스로 전량
+// 재조회한다 — 필드를 애초에 받지 않으므로 위조 경로 자체가 타입 레벨에서 없다(2026-08-07,
+// 옵션 K 요구사항 1, 페이로드 다이어트).
 interface CurateRequestBody {
   curationRequest: CurationRequest;
-  spots: WorkSpot[];
-  lifeSpots?: LifeSpot[];
+  spots: string[];
+  lifeSpots?: string[];
 }
 
 // UI(app/ai-curator/page.tsx)가 실제로 보내는 값은 2/4/6/8뿐이다. 그 외 값도 크래시는 안 나지만
@@ -96,10 +100,10 @@ export async function POST(request: NextRequest) {
     const lifeById = new Map(lifeCorpus.map((s) => [s.id, s]));
 
     const verifiedSpots = body.spots
-      .map((s) => workById.get(s?.id))
+      .map((id) => workById.get(id))
       .filter((s): s is WorkSpot => s !== undefined);
     const verifiedLifeSpots = (body.lifeSpots ?? [])
-      .map((s) => lifeById.get(s?.id))
+      .map((id) => lifeById.get(id))
       .filter((s): s is LifeSpot => s !== undefined);
 
     // 라이프스팟 후보를 위 id 대조 결과(클라이언트가 보낸 목록의 교집합)만으로 두면, 서버가

@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- 카카오맵 JS SDK는 공식 타입 정의를 제공하지 않는 앰비언트 선언이라, Map/Marker 등 생성자 인자·반환값을 any로 둘 수밖에 없다(2026-08-07, 옵션 K 요구사항 4·6). 정식 타입 재작성은 이번 라운드 비목표. */
+
 declare global {
   interface Window {
     kakao: {

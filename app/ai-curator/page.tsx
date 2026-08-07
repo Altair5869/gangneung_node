@@ -68,16 +68,47 @@ export default function AiCuratorPage() {
       const { spots: foodSpots } = (await foodSpotsRes.json()) as { spots: LifeSpot[] };
       const lifeSpots = [...attractionSpots, ...foodSpots];
 
-      const res = await fetch("/api/ai/curate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          curationRequest: { workStyle, duration, preferences, freeText: freeText.trim() || undefined, startHour },
-          spots,
-          lifeSpots,
-        }),
-      });
-      if (!res.ok) throw new Error();
+      // 서버(app/api/ai/curate/route.ts)는 어차피 id만 대조하고 필드는 자체 코퍼스에서 전량
+      // 재조회하므로, 전체 객체가 아니라 id 배열만 보낸다(2026-08-07, 옵션 K 요구사항 1).
+      let res: Response;
+      try {
+        res = await fetch("/api/ai/curate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            curationRequest: { workStyle, duration, preferences, freeText: freeText.trim() || undefined, startHour },
+            spots: spots.map((s) => s.id),
+            lifeSpots: lifeSpots.map((s) => s.id),
+          }),
+        });
+      } catch {
+        // fetch 자체가 reject되는 경우(네트워크 끊김, DNS 실패 등) — 서버 응답 자체가 없어
+        // res.json()을 시도할 대상이 없으므로 400/500 분기와 별도로 처리한다.
+        setError("네트워크 연결을 확인해주세요. 서버에 연결할 수 없습니다.");
+        return;
+      }
+
+      if (!res.ok) {
+        // 서버가 이미 error 코드별로 다른 message를 내려주므로(invalid_json/invalid_spots/
+        // invalid_curation_request는 400, curation_failed는 500) body를 읽어 그대로 노출한다
+        // (2026-08-07, 옵션 K 요구사항 2 — 이전엔 body를 버리고 고정 문구 1개만 띄웠음).
+        let serverMessage: string | undefined;
+        try {
+          const errBody = (await res.json()) as { error?: string; message?: string };
+          serverMessage = errBody?.message;
+        } catch {
+          // 에러 응답 본문조차 JSON이 아닌 극단적 케이스 — 상태 코드 기반 기본 문구로 폴백.
+        }
+        if (serverMessage) {
+          setError(serverMessage);
+        } else if (res.status >= 500) {
+          setError("서버에서 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
+        } else {
+          setError("요청 형식에 문제가 있습니다. 잠시 후 다시 시도해주세요.");
+        }
+        return;
+      }
+
       const data = (await res.json()) as { route: CurationRoute };
       setResult(data.route);
       setShowSaveForm(false);
