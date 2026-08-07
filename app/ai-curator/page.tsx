@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { WorkSpot, LifeSpot, CurationRoute, isLifeSpot } from "@/types";
 import { cn, congestionLabel, isBarrierFree } from "@/lib/utils";
@@ -33,6 +33,18 @@ const START_TIME_OPTIONS: { value: number | undefined; label: string }[] = [
   { value: 18, label: "오후 6시" },
 ];
 
+// 클라이언트 타이머 기반 로딩 단계 문구 (옵션 G6, 2026-08-07).
+// 서버 상태를 실시간 반영하는 게 아니라 실측 응답 시간(route.ts 주석: 12.4~13.6초)에
+// 맞춘 "예상 진행 상황" 추정 표시일 뿐이다 — 퍼센트 바나 "검증 3/3 통과" 같은 확정 문구는
+// 만들지 않는다. 8초 이후에는 실측 범위를 넘겨도(재시도 등) 무한 로딩처럼 보이지 않도록
+// 마지막 단계 문구에 계속 머문다.
+const LOADING_STAGES: { delayMs: number; text: string }[] = [
+  { delayMs: 0, text: "선호 조건에 맞는 후보를 찾는 중..." },
+  { delayMs: 2000, text: "AI가 동선을 구성하는 중..." },
+  { delayMs: 4000, text: "이동 거리·조건을 검증하는 중..." },
+  { delayMs: 8000, text: "조건에 맞는 곳을 찾고 있어요, 잠시만요..." },
+];
+
 export default function AiCuratorPage() {
   const [workStyle, setWorkStyle] = useState(WORK_STYLES[0].value);
   const [duration, setDuration] = useState(4);
@@ -40,6 +52,8 @@ export default function AiCuratorPage() {
   const [preferences, setPreferences] = useState<string[]>([]);
   const [freeText, setFreeText] = useState("");
   const [loading, setLoading] = useState(false);
+  const [loadingText, setLoadingText] = useState(LOADING_STAGES[0].text);
+  const loadingTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const [result, setResult] = useState<CurationRoute | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [planName, setPlanName] = useState("");
@@ -52,10 +66,33 @@ export default function AiCuratorPage() {
     );
   };
 
+  // 예약된 로딩 단계 타이머를 전부 취소한다. 응답 완료/에러/컴포넌트 unmount/연속 요청
+  // 시작 시 반드시 호출해서, 이전 요청의 타이머가 살아남아 문구가 겹치는 일이 없게 한다.
+  const clearLoadingTimers = () => {
+    loadingTimersRef.current.forEach(clearTimeout);
+    loadingTimersRef.current = [];
+  };
+
+  // unmount 시 정리 (React StrictMode 개발 모드에서는 이 effect도 mount→cleanup→mount로
+  // 두 번 실행되지만, clearLoadingTimers는 그 시점에 등록된 타이머가 없어도 안전하게
+  // no-op으로 끝난다).
+  useEffect(() => {
+    return () => clearLoadingTimers();
+  }, []);
+
   const handleSubmit = async () => {
     setLoading(true);
     setError(null);
     setResult(null);
+
+    // 이전 요청이 남긴 타이머가 있다면 먼저 정리하고 첫 단계 문구로 리셋한 뒤,
+    // 두 번째 단계부터 실측 타이밍(LOADING_STAGES)에 맞춰 새로 예약한다.
+    clearLoadingTimers();
+    setLoadingText(LOADING_STAGES[0].text);
+    loadingTimersRef.current = LOADING_STAGES.slice(1).map((stage) =>
+      setTimeout(() => setLoadingText(stage.text), stage.delayMs)
+    );
+
     try {
       const spotsUrl = startHour !== undefined ? `/api/spots?startHour=${startHour}` : "/api/spots";
       const [spotsRes, lifeSpotsRes, foodSpotsRes] = await Promise.all([
@@ -118,6 +155,7 @@ export default function AiCuratorPage() {
       setError("AI 큐레이터 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
     } finally {
       setLoading(false);
+      clearLoadingTimers();
     }
   };
 
@@ -265,7 +303,7 @@ export default function AiCuratorPage() {
                 {loading ? (
                   <span className="flex items-center justify-center gap-2">
                     <span className="w-4 h-4 border-2 border-border border-t-foreground/50 rounded-full animate-spin" />
-                    AI가 동선을 구성 중입니다...
+                    {loadingText}
                   </span>
                 ) : (
                   "AI 동선 추천받기"
