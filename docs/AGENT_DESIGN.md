@@ -385,3 +385,27 @@ PRD 검토 중 `filterByPreferences`(사전 필터)와 `validateRoute`(Node 2 �
 `power` 가중치는 24/231 ≈ 10%로 눈에 띄는 재정렬 효과가 있다. `noise` 가중치는 표본이 2곳뿐이라 재정렬 폭이 작지만, 죽은 코드 경로는 아니다("진짜지만 작은 기능"). `VERIFIED_SPOTS`가 늘어나면 두 표본 모두 함께 커지는 구조다.
 
 **pass/fail 게이트가 아니라 랭킹 참고로만 (옵션 C 전례 재사용)**: `validateRoute`에 새 pass/fail 조건을 추가하지 않았다. 대신 workStyle 가중치가 실제로 적용된 경우(=`WORK_STYLE_BOOST_STYLES.has(request.workStyle) && buildSearchQuery(request) === ""` — `rankCandidates`가 boost를 실제로 타는 조건과 동일)에만 `checks`에 `id: "workstyle-ranking"`, `status: "skipped"` 정보성 항목 1개를 추가한다. 매핑 없는 스타일이거나 벡터 랭킹 경로라 적용이 안 된 경우엔 이 항목 자체를 추가하지 않는다 — "적용 안 됐는데 적용된 것처럼" 보이는 오탐을 막기 위함. `unverifiable-preference`와 마찬가지로 문구는 "참고"이지 "검증"이 아님을 명시하고, "확정"/"보장" 단어를 쓰지 않는다. `RouteVerificationCard.tsx`는 `checks[]`를 id-agnostic하게 렌더링하는 기존 구조라 컴포넌트 코드 변경 없이 새 check가 그대로 표시된다.
+
+## 축제/행사를 AI 큐레이터 동선에 연동 (2026-08-07, 옵션 B)
+
+**배경**: `getEventList()`(`searchFestival2`, contentTypeId=15)는 이미 `/events` 페이지에서 쓰이고 있었지만 `curateRoute` 후보 풀에는 전혀 연결되지 않았다. `EventSpot`(기존 타입)은 `spotType`/`category`/`description`이 없어 `RouteStop = WorkSpot | LifeSpot` 유니온에 그대로 넣을 수 없었다 — `LifeSpot` 형태로 변환하는 어댑터가 이번 라운드의 R1이다.
+
+**R1 — 타입 확장·어댑터**: `LifeSpot.category`에 `"event"`를 추가하고, `eventStartDate?`/`eventEndDate?`(YYYYMMDD, `EventApiItem`과 동일 포맷) optional 필드를 추가했다(`types/index.ts`). 기존 `LifeSpot` 객체는 이 필드가 없어도 optional이라 하위 호환이 깨지지 않는다. `mapEventToLifeSpot`(`lib/tourism-mapper.ts`)가 `EventApiItem` → `LifeSpot` 변환을 담당하며, id는 기존 `mapTourismToEventSpot`과 동일하게 `event-${contentid}` — 다른 id 스킴(`food-`/`stay-`/`attraction-`/`kakao-`)과 접두사가 겹치지 않는다. `LIFE_CATEGORY_LABEL`(`lib/ai.ts`)과 `categoryLabel`(`lib/spot-visuals.ts`)이 둘 다 `Record<LifeSpot["category"], string>` 타입이라, `event` 라벨을 한쪽만 추가하면 TypeScript 컴파일이 실패한다 — 실제로 `event` 라벨 한쪽을 지우고 `tsc --noEmit`이 `Property 'event' is missing`으로 실패하는 것을 직접 확인했다(타입 강제 검증).
+
+**R2 — 후보 union, 이벤트 전용 우대 로직 없음**: `buildEventLifeSpotCorpus()`(`lib/spot-corpus.ts`)가 `getEventList()` 호출 + `mapEventToLifeSpot` 변환을 담당한다. `getEventList()`는 좌표가 아니라 지역(`areaCode`/`sigunguCode`)+오늘 날짜(`todayKST()`) 기준 조회라, 좌표 인자를 받는 `buildNearbyLifeSpotCorpus`(옵션 A)와 달리 인자가 없다 — 실패해도 빈 배열로 폴백해 큐레이션이 중단되지 않는다(기존 `buildNearbyLifeSpotCorpus` 폴백 패턴 재사용).
+
+`curateRoute`(`lib/ai.ts`)에 옵션 A와 동일한 DI 패턴으로 `options.fetchEvents?: () => Promise<LifeSpot[]>`를 추가했다. `app/api/ai/curate/route.ts`가 `buildEventLifeSpotCorpus`를 주입한다 — 이벤트는 클라이언트가 id를 보낼 방법이 없으므로(어느 페이지도 이벤트 id를 클라이언트에 내려주지 않음) "서버가 직접 조회해 union"하는 경로로만 편입 가능하다. 이는 "클라이언트 값을 신뢰하지 않는다"(2026-07-28, P3 항목 1) 원칙과 충돌하지 않는다 — 추가되는 값의 출처가 클라이언트 입력이 아니라 관광공사 API 응답이다.
+
+union 위치는 `nonStayLifeSpots`를 `extendLifeSpotCandidates`에 넘기기 **전**이다(`nonStayLifeSpotsWithEvents`). 그 이후 `balanceLifeSpots`가 워크스팟 기준 최단거리로 자동 재정렬/컷하도록 그대로 맡긴다 — `balanceLifeSpots`는 `category !== "food"`만 보고 나머지를 전부 "휴식" 취급하므로 `"event"`도 코드 변경 없이 이 버킷에 들어간다. **이벤트 전용 고정 슬롯/우대 로직은 만들지 않았다** — 옵션 A 라운드에서 실측 확인한 D-② 함정(관련성 높은 후보를 무조건 늘리면 오히려 총 이동거리가 회귀함, +151m/2.9% 유의미하게 증가)을 다시 밟지 않기 위한 의도적 설계 결정이다. 이벤트가 워크스팟에서 너무 멀면 `balanceLifeSpots`의 최근접 정렬에서 자연스럽게 밀려나 최종 15곳 컷에서 탈락하는 것이 정상 동작이다.
+
+**R3 — 날짜 코드 검증 (pass/fail 게이트)**: `eventStartDate`/`eventEndDate`는 관광공사 API가 그대로 제공하는 확정 사실 데이터라(전화 확인이 필요한 `power.level`류와 달리 해석의 여지가 없음) `barrierFree`와 같은 근거로 pass/fail 게이트로 쓸 자격이 있다고 판단했다. `validateRoute`가 선택된 라이프스팟 중 이벤트 항목(`category === "event"` && 두 날짜 필드 모두 존재)에 대해 `eventStartDate <= todayKST() <= eventEndDate`를 검증한다(YYYYMMDD 고정폭 문자열이라 사전식 비교가 날짜 비교와 동치임을 확인). 이 체크는 사용자 preference 토글이 아니라 "동선에 이벤트가 포함됐는가"라는 콘텐츠 조건에 좌우되는 **항상-활성 구조적 체크**(`food-included`/`workspot-count`와 동일 분류)다 — 동선에 이벤트가 없으면 `eventViolations`가 자명하게 빈 배열이라 `event-date` 체크는 `pass`(스킵이 아님)이고, 있으면 날짜 검증 결과로 `pass`/`fail`이 갈린다. 위반 시 `pushStructural`로 처리해 `structuralReasons`에 실리고, LangGraph 재시도 루프(`MAX_ATTEMPTS`)가 기존 구조적 위반과 동일한 경로로 다른 후보를 재시도한다.
+
+`RouteCheck["id"]` 유니온에 `"event-date"`를 추가했다(`types/index.ts`). `RouteVerificationCard`는 `checks[]`를 id-agnostic하게 렌더링하는 기존 구조라 컴포넌트 코드 변경 없이 새 체크가 그대로 표시된다(옵션 C/F 전례와 동일).
+
+**방문일 UI 없음 — "오늘(KST)"을 암묵적 방문일로 취급**: `CurationRequest`에는 애초에 방문일 필드가 없다(`startHour`만 존재). `getEventList()` 자체가 이미 `todayKST()`를 조회 기준으로 쓰고 있어 AI 큐레이터는 원래 "오늘"의 동선을 만드는 것을 전제로 설계돼 있었다 — 이번 라운드에서 새 UI 입력(날짜 선택기)을 추가하지 않고 이 전제를 그대로 검증에 연결했다. "내일 방문할 계획인데 오늘 아직 시작 안 한 축제를 골라줬다" 같은 케이스는 버그가 아니라 알려진 설계 한계다.
+
+**`todayKST` 공유 위치 이동**: 원래 `lib/tourism-api.ts`에만 있던 `todayKST()`를 `lib/utils.ts`로 옮겼다. `lib/ai.ts`는 관광공사 API 모듈을 직접 import하지 않는 기존 아키텍처 원칙이 있는데, `event-date` 검증에도 같은 로직이 필요했다 — 순수 날짜 유틸이라 복제하지 않고 공유 위치로 옮겨 `lib/tourism-api.ts`(`getEventList`의 `eventStartDate` 파라미터)와 `lib/ai.ts`(`validateRoute`) 양쪽이 같은 함수 하나를 재사용한다.
+
+**R4 — 프롬프트 컨텍스트**: `buildLifeSpotsContext`가 이벤트 항목에 한해서만 `기간:YYYYMMDD~YYYYMMDD`를 추가로 표기한다. `generateOnce`에 이벤트 후보가 있을 때만 "기간이 오늘 방문 가능한지 참고하라"는 안내 1줄(`eventHintLine`)을 추가했다(선택 사항, R3의 코드 검증이 최종 방어선이므로 없어도 무방). self-critique(LLM 재질문) 패턴은 추가하지 않았다(AI 에이전트 설계 규칙 3).
+
+**스코프 제외**: 결과 화면 이벤트 전용 카드/배지 UI, 이벤트 전용 필터/토글, 방문일 선택 UI — 전부 미구현. `categoryLabel` Record 추가만으로 "행사/축제" 라벨이 기존 카드에 이미 표시되므로 최소 기능은 전용 UI 없이 성립한다.

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { curateRoute } from "@/lib/ai";
-import { buildSpotCorpus, buildLifeSpotCorpus, buildNearbyLifeSpotCorpus } from "@/lib/spot-corpus";
+import { buildSpotCorpus, buildLifeSpotCorpus, buildNearbyLifeSpotCorpus, buildEventLifeSpotCorpus } from "@/lib/spot-corpus";
 import { CurationRequest, WorkSpot, LifeSpot } from "@/types";
 
 // spots/lifeSpots는 워크스팟/라이프스팟 전체 객체가 아니라 id 문자열 배열이다. 클라이언트는
@@ -112,8 +112,11 @@ export async function POST(request: NextRequest) {
     // 명시적으로 열어 준다(요구사항 R2-2). 이건 "클라이언트 값을 신뢰하지 않는다"는 원칙과
     // 충돌하지 않는다 — 추가되는 값의 출처가 클라이언트 입력이 아니라 관광공사 API 응답이다.
     // 좌표 기준(워크스팟 랭킹 상위)은 preFilter 이후에야 정해지므로 조회 함수를 주입만 한다.
+    // 옵션 B(2026-08-07): 이벤트(축제/행사)도 같은 이유(클라이언트가 이벤트 id를 보낼 방법이
+    // 없음 — 어느 페이지도 이벤트 id를 클라이언트에 내려주지 않음)로 동일한 DI 패턴으로 주입한다.
     const route = await curateRoute(body.curationRequest, verifiedSpots, verifiedLifeSpots, {
       fetchNearbyLifeSpots: buildNearbyLifeSpotCorpus,
+      fetchEvents: buildEventLifeSpotCorpus,
     });
     return NextResponse.json({ route });
   } catch (error) {

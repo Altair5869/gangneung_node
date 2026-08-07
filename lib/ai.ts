@@ -13,7 +13,7 @@ import {
 } from "@/types";
 import { embed, cosineSimilarity } from "@/lib/embeddings";
 import { queryTopK } from "@/lib/vector-store";
-import { isBarrierFree, wifiLabel, powerLabel, noiseLabel } from "@/lib/utils";
+import { isBarrierFree, wifiLabel, powerLabel, noiseLabel, todayKST } from "@/lib/utils";
 import { VERIFIED_SPOTS } from "@/lib/verified-spots";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -200,11 +200,21 @@ const LIFE_CATEGORY_LABEL: Record<LifeSpot["category"], string> = {
   attraction: "관광지",
   stay: "숙박",
   food: "식당",
+  event: "행사/축제",
 };
 
+// 옵션 B(2026-08-07): 이벤트 항목에 한해서만 기간(eventStartDate~eventEndDate)을 컨텍스트에
+// 추가로 노출한다. LLM이 이 기간을 참고해 오늘 방문 가능한 이벤트를 우선 고르도록 유도하되,
+// 실제 강제는 validateRoute의 event-date 코드 검증이 한다 — 여기서는 재질문(self-critique) 없이
+// 정보만 보여준다(AI 에이전트 설계 규칙 3).
 function buildLifeSpotsContext(spots: LifeSpot[]): string {
   return spots
-    .map((s) => `id:${s.id} | ${s.name} (${LIFE_CATEGORY_LABEL[s.category]}) | lat:${s.lat.toFixed(4)} lng:${s.lng.toFixed(4)} | 태그:[${s.tags.join(",")}]`)
+    .map((s) => {
+      const period = s.category === "event" && s.eventStartDate && s.eventEndDate
+        ? ` | 기간:${s.eventStartDate}~${s.eventEndDate}`
+        : "";
+      return `id:${s.id} | ${s.name} (${LIFE_CATEGORY_LABEL[s.category]})${period} | lat:${s.lat.toFixed(4)} lng:${s.lng.toFixed(4)} | 태그:[${s.tags.join(",")}]`;
+    })
     .join("\n");
 }
 
@@ -232,6 +242,11 @@ function balanceLifeSpots(
 // (lib/ai.ts가 외부 API 조회를 직접 하지 않는 기존 구조를 유지하기 위함).
 // 실패·0건이면 base(지역 기반 후보)를 그대로 돌려줘 큐레이션이 중단되지 않는다.
 type NearbyLifeSpotFetcher = (refs: { lat: number; lng: number }[]) => Promise<LifeSpot[]>;
+
+// 옵션 B(2026-08-07): getEventList()는 좌표가 아니라 지역+오늘 날짜 기준 조회라 NearbyLifeSpotFetcher와
+// 달리 인자가 없다. fetchNearbyLifeSpots와 동일한 DI 패턴(lib/ai.ts는 관광공사 API 모듈을 직접
+// import하지 않는다)으로 조회 함수만 주입받는다.
+type EventLifeSpotFetcher = () => Promise<LifeSpot[]>;
 
 // 같은 장소를 관광공사와 카카오가 서로 다른 id로 반환하는 일이 실제로 있다 —
 // `스타벅스 강릉강문해변점`은 라이프스팟 `food-3536360`이면서 워크스팟 `kakao-397693663`이고,
@@ -342,6 +357,12 @@ async function generateOnce(
   const feedbackText = retryFeedback
     ? `\n\n[이전 추천 재검토 필요]\n${retryFeedback}\n위 문제를 피해서 다른 장소로 다시 동선을 구성해주세요.`
     : "";
+  // 옵션 B(2026-08-07): 이벤트 후보가 있을 때만 안내 1줄 추가(선택 사항). 실제 강제는
+  // validateRoute의 event-date 코드 검증이 하므로, 여기서는 "기간을 참고하라"는 힌트만 준다 —
+  // 재질문(self-critique) 없음.
+  const eventHintLine = lifeSpots.some((s) => s.category === "event")
+    ? "\n관광지/라이프스팟 후보 중 (행사/축제)로 표시된 항목은 '기간' 필드가 오늘 방문 가능한지 참고하세요."
+    : "";
   // 옵션 D-①: 정렬 안내 문구 노출 조건을 freeText 단독 체크에서 "합성 검색 쿼리(freeText +
   // 선택된 UNVERIFIABLE_PREFERENCES)가 비어있지 않음"으로 넓힌다 — rankCandidates가 실제로
   // 랭킹 순서를 바꾸는 조건과 일치시켜야, "뷰 좋은 곳"만 선택했을 때도 Claude가 정렬 사실을
@@ -372,7 +393,7 @@ async function generateOnce(
           },
           {
             type: "text",
-            text: `업무 스타일: ${request.workStyle}\n업무 시간: ${request.duration}시간\n선호 조건: ${request.preferences.length > 0 ? request.preferences.join(", ") : "없음"}${freeTextLine}\n\n워크-라이프 동선을 구성해주세요:\n- 워크스팟 정확히 1곳 (집중 업무. 업무 중간에 다른 워크스팟으로 옮기지 말고 한 곳에 머무를 것)\n- 관광지/휴식 스팟 1~2곳 (업무 사이 휴식·여가. 해변·전망 등 숨 돌릴 수 있는 곳)\n- 식당 1곳 (식사)\n이동 거리를 고려해 가까운 장소끼리 배치하세요.\n주의: 사용자가 시작 시간을 지정하지 않았으므로 특정 시간대(아침/오후 등)를 지어내지 마세요. 정확한 이동 거리·소요 시간 수치도 알 수 없으니 언급하지 마세요. stopNotes는 반드시 order와 같은 순서로 작성하세요.${feedbackText}`,
+            text: `업무 스타일: ${request.workStyle}\n업무 시간: ${request.duration}시간\n선호 조건: ${request.preferences.length > 0 ? request.preferences.join(", ") : "없음"}${freeTextLine}\n\n워크-라이프 동선을 구성해주세요:\n- 워크스팟 정확히 1곳 (집중 업무. 업무 중간에 다른 워크스팟으로 옮기지 말고 한 곳에 머무를 것)\n- 관광지/휴식 스팟 1~2곳 (업무 사이 휴식·여가. 해변·전망 등 숨 돌릴 수 있는 곳)\n- 식당 1곳 (식사)\n이동 거리를 고려해 가까운 장소끼리 배치하세요.\n주의: 사용자가 시작 시간을 지정하지 않았으므로 특정 시간대(아침/오후 등)를 지어내지 마세요. 정확한 이동 거리·소요 시간 수치도 알 수 없으니 언급하지 마세요. stopNotes는 반드시 order와 같은 순서로 작성하세요.${eventHintLine}${feedbackText}`,
           },
         ],
       },
@@ -520,6 +541,24 @@ function validateRoute(
     pushStructural(`이동 거리 초과: 총 ${distance.toFixed(1)}km (기준 ${threshold}km)`);
   }
 
+  // 옵션 B(2026-08-07): 행사/축제 날짜 검증. 사용자 preference 토글이 아니라 "동선에 이벤트가
+  // 포함됐는가"라는 콘텐츠 조건에 좌우되는 항상-활성 구조적 체크(food-included/workspot-count와
+  // 동일 분류) — 동선에 이벤트가 없으면 자명하게 통과이고, 있으면 오늘(KST) 날짜가 시작~종료
+  // 기간 안인지 코드로 검증한다. eventStartDate/eventEndDate는 관광공사 API가 그대로 제공하는
+  // 확정 사실 데이터라(해석·주관 개입 없음) barrierFree와 같은 근거로 pass/fail 게이트로 쓴다
+  // (CLAUDE.md 데이터 규칙 4 연장, 방문일 UI가 없으므로 "오늘"을 암묵적 방문일로 취급 — 설계
+  // 한계로 이미 인지됨, 버그 아님).
+  const eventStops = route.spots.filter(
+    (s): s is LifeSpot => isLifeSpot(s) && s.category === "event" && !!s.eventStartDate && !!s.eventEndDate
+  );
+  const today = todayKST();
+  const eventViolations = eventStops.filter(
+    (s) => !(s.eventStartDate! <= today && today <= s.eventEndDate!)
+  );
+  eventViolations.forEach((s) => {
+    pushStructural(`행사 기간이 아닙니다: ${s.name} (${s.eventStartDate}~${s.eventEndDate}, 오늘 ${today})`);
+  });
+
   // 각 필드 상태 문구는 반드시 lib/utils의 라벨 헬퍼를 거친다 — 여기서 한국어 상태 문자열을
   // 새로 지어내면 "미확인"이 "없음"으로 둔갑하는 등 데이터 규칙 위반이 UI까지 번진다.
   const perStop = (render: (s: WorkSpot) => string) => workStops.map((s) => `${s.name} · ${render(s)}`).join(", ");
@@ -563,6 +602,17 @@ function validateRoute(
       label: "조용한 환경 조건",
       status: !noiseChecked ? "skipped" : noiseViolations === 0 ? "pass" : "fail",
       detail: noiseChecked ? perStop((s) => noiseLabel(s.noise)) : SKIPPED_DETAIL,
+    },
+    {
+      id: "event-date",
+      label: "행사 날짜 유효성",
+      status: eventViolations.length === 0 ? "pass" : "fail",
+      detail:
+        eventStops.length === 0
+          ? "동선에 포함된 행사/축제가 없습니다"
+          : eventStops
+              .map((s) => `${s.name} · ${s.eventStartDate}~${s.eventEndDate}${eventViolations.includes(s) ? " (오늘 기간 아님)" : ""}`)
+              .join(", "),
     },
   ];
 
@@ -764,7 +814,7 @@ export async function curateRoute(
   request: CurationRequest,
   availableSpots: WorkSpot[],
   availableLifeSpots: LifeSpot[] = [],
-  options: { fetchNearbyLifeSpots?: NearbyLifeSpotFetcher } = {}
+  options: { fetchNearbyLifeSpots?: NearbyLifeSpotFetcher; fetchEvents?: EventLifeSpotFetcher } = {}
 ): Promise<CurationRoute> {
   // 숙소는 사용자가 이미 머무는 곳이지 "일하러 이동할 목적지"가 아니므로 워케이션 동선에서는 제외한다.
   // 숙박 자체 추천은 /stay 페이지에서 별도로 다룬다.
@@ -776,6 +826,20 @@ export async function curateRoute(
   // UI(app/ai-curator/page.tsx)는 attraction+food만 보내 실사용 경로에서는 발생하지 않지만,
   // /api/ai/curate를 직접 호출하는 경로까지 계약으로 강제하기 위해 여기서 명시적으로 막는다.
   const nonStayLifeSpots = availableLifeSpots.filter((s) => s.category !== "stay");
+
+  // 옵션 B(2026-08-07): 이벤트 후보를 nonStayLifeSpots에 union한다(extendLifeSpotCandidates에
+  // 넘기기 전). 이후 balanceLifeSpots가 워크스팟 기준 최단거리로 자동 재정렬/컷하도록 그대로
+  // 맡긴다 — 이벤트 전용 고정 슬롯/우대 로직을 만들지 않는다(옵션 A 라운드의 D-② 함정 회피
+  // 교훈 재사용: 관련성 높은 후보를 무조건 늘리면 거리가 오히려 회귀할 수 있음). 실패해도
+  // 파이프라인이 중단되지 않도록 여기서도 방어적으로 catch한다(buildEventLifeSpotCorpus 자체가
+  // 이미 빈 배열로 폴백하지만, DI로 다른 구현이 주입될 가능성에 대비한 이중 방어).
+  const eventLifeSpots = options.fetchEvents
+    ? await options.fetchEvents().catch((error) => {
+        console.error("[ai] 이벤트 라이프스팟 조회 실패 — 이벤트 없이 진행:", error);
+        return [] as LifeSpot[];
+      })
+    : [];
+  const nonStayLifeSpotsWithEvents = [...nonStayLifeSpots, ...eventLifeSpots];
 
   // filterByPreferences의 "5곳 미만이면 조건 전체를 무시하고 원본으로 복귀" 폴백이 발동하면,
   // validateRoute는 여전히 엄격하게 검증하므로 LangGraph가 최대 3회(MAX_ATTEMPTS) 전부 실패할
@@ -793,7 +857,7 @@ export async function curateRoute(
   // 위치기반 후보는 워크스팟 후보가 확정된 뒤에야 좌표 기준이 생기므로 preFilter 다음에 확장한다.
   // 확장 결과에 대해 적용하는 balanceLifeSpots(최근접 정렬 + 식당 확보)는 그대로 재사용한다.
   const lifeSpotCandidates = await extendLifeSpotCandidates(
-    nonStayLifeSpots,
+    nonStayLifeSpotsWithEvents,
     workSpots,
     nonStaySpots,
     options.fetchNearbyLifeSpots

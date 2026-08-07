@@ -9,6 +9,7 @@ export const categoryLabel: Record<WorkSpot["category"] | LifeSpot["category"], 
   attraction: "관광지",
   stay: "숙박",
   food: "음식점",
+  event: "행사/축제",
 };
 
 export const categoryGradient: Record<WorkSpot["category"], string> = {

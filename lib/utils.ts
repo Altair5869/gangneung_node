@@ -5,6 +5,21 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+// KST(UTC+9) 기준 오늘 날짜를 YYYYMMDD 문자열로 반환한다. 원래 lib/tourism-api.ts에만 있던
+// 함수를 여기로 옮겼다(옵션 B, 2026-08-07) — getEventList()의 eventStartDate 파라미터뿐 아니라
+// lib/ai.ts의 validateRoute(이벤트 날짜 검증, event-date 체크)도 같은 로직이 필요한데, lib/ai.ts는
+// 관광공사 API 모듈(lib/tourism-api.ts)을 직접 import하지 않는 기존 아키텍처 원칙이 있다. 순수
+// 날짜 유틸이라 이 공유 위치로 옮기고 두 곳(lib/tourism-api.ts, lib/ai.ts)에서 재사용한다 — 로직
+// 복제 금지, 원본은 이 함수 하나만 유지.
+export function todayKST(): string {
+  const now = new Date();
+  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  const y = kst.getUTCFullYear();
+  const m = String(kst.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(kst.getUTCDate()).padStart(2, "0");
+  return `${y}${m}${d}`;
+}
+
 export function noiseLabel(noise: "언급됨-조용함" | "언급됨-시끄러움" | "언급없음") {
   if (noise === "언급없음") return "소음 미확인";
   return { "언급됨-조용함": "조용함 언급", "언급됨-시끄러움": "시끄러움 언급" }[noise];

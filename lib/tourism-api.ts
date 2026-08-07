@@ -1,4 +1,5 @@
 import { TourismApiItem, EventApiItem } from "@/types";
+import { todayKST } from "@/lib/utils";
 
 const KORSERVICE_URL = "https://apis.data.go.kr/B551011/KorService2";
 const BARRIER_FREE_URL = "https://apis.data.go.kr/B551011/KorWithService2";
@@ -161,15 +162,8 @@ export async function getAttractionList(areaCode = "32", sigunguCode = "1") {
 }
 
 // ── 행사/축제 (contentTypeId=15, searchFestival2) ─────────
-
-function todayKST(): string {
-  const now = new Date();
-  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-  const y = kst.getUTCFullYear();
-  const m = String(kst.getUTCMonth() + 1).padStart(2, "0");
-  const d = String(kst.getUTCDate()).padStart(2, "0");
-  return `${y}${m}${d}`;
-}
+// todayKST()는 lib/utils.ts로 이동했다(옵션 B, 2026-08-07) — lib/ai.ts의 event-date 검증도
+// 같은 로직이 필요해 공유 위치로 옮기고 여기서는 재사용만 한다.
 
 export async function getEventList(areaCode = "32", sigunguCode = "1"): Promise<EventApiItem[]> {
   const params: Record<string, string> = {

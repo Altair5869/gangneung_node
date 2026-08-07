@@ -6,8 +6,9 @@ import {
   getFoodList,
   getStayList,
   getLocationBasedList,
+  getEventList,
 } from "@/lib/tourism-api";
-import { mapTourismToWorkSpot, mapBarrierFreeToWorkSpot, mapTourismToLifeSpot, mapTourismToFoodSpot, mapTourismToStaySpot } from "@/lib/tourism-mapper";
+import { mapTourismToWorkSpot, mapBarrierFreeToWorkSpot, mapTourismToLifeSpot, mapTourismToFoodSpot, mapTourismToStaySpot, mapEventToLifeSpot } from "@/lib/tourism-mapper";
 import { getKakaoCafes } from "@/lib/kakao-local-api";
 import { estimateCongestion, looksLikeCafe } from "@/lib/utils";
 import { VERIFIED_SPOTS, mergeVerifiedFields } from "@/lib/verified-spots";
@@ -213,4 +214,19 @@ export async function buildNearbyLifeSpotCorpus(refs: { lat: number; lng: number
   });
 
   return [...byId.values()];
+}
+
+// ── 이벤트(축제/행사) 라이프스팟 후보 (옵션 B, 2026-08-07) ────────────────────
+//
+// getEventList()는 좌표가 아니라 지역(areaCode/sigunguCode)+오늘 날짜(todayKST()) 기준 조회라
+// buildNearbyLifeSpotCorpus처럼 워크스팟 좌표를 인자로 받을 필요가 없다. 실패/0건이면 빈 배열을
+// 반환해 기존 buildNearbyLifeSpotCorpus의 폴백 패턴과 동일하게 curateRoute가 중단되지 않는다.
+export async function buildEventLifeSpotCorpus(): Promise<LifeSpot[]> {
+  try {
+    const items = await getEventList();
+    return items.filter(hasValidCoords).map(mapEventToLifeSpot);
+  } catch (error) {
+    console.error("[spot-corpus] event life spot fetch failed:", error);
+    return [];
+  }
 }

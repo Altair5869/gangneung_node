@@ -41,13 +41,18 @@ export interface LifeSpot {
   id: string;
   name: string;
   spotType: "life";
-  category: "attraction" | "stay" | "food";
+  category: "attraction" | "stay" | "food" | "event";
   address: string;
   lat: number;
   lng: number;
   imageUrl?: string;
   description?: string;
   tags: string[];
+  // 옵션 B(2026-08-07): category === "event"일 때만 채워지는 관광공사 축제/행사 API
+  // (searchFestival2) 원본 기간 필드(YYYYMMDD). 그 외 category에서는 항상 undefined —
+  // 기존 LifeSpot 객체는 이 필드가 없어도 옵셔널이라 하위 호환이 깨지지 않는다.
+  eventStartDate?: string;
+  eventEndDate?: string;
 }
 
 export type RouteStop = WorkSpot | LifeSpot;
@@ -67,7 +72,8 @@ export interface RouteCheck {
     | "barrier-free"
     | "noise"
     | "unverifiable-preference"
-    | "workstyle-ranking";
+    | "workstyle-ranking"
+    | "event-date";
   label: string;   // 화면 표기용 (한국어)
   status: CheckStatus;
   detail?: string; // 예: "8.2 / 10 km · 직선 기준"
