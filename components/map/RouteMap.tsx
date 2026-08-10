@@ -6,9 +6,17 @@ import { RouteStop, isLifeSpot } from "@/types";
 const WORK_COLOR = "#0F6B62";
 const LIFE_COLOR = "#B8511E";
 
+// /api/directions가 파싱한 도로 기준 총 거리/시간(참고 정보, 옵션 E-2/R6). schedule의 이동시간
+// 문자열(가정 속도 기반 추정치)과는 값의 출처·시점이 다르므로 절대 같은 것으로 표기하지 않는다.
+interface RoadSummary {
+  distanceMeters: number;
+  durationSeconds: number;
+}
+
 export default function RouteMap({ stops }: { stops: RouteStop[] }) {
   const mapRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [roadSummary, setRoadSummary] = useState<RoadSummary | null>(null);
 
   useEffect(() => {
     let pollTimer: ReturnType<typeof setInterval>;
@@ -48,11 +56,18 @@ export default function RouteMap({ stops }: { stops: RouteStop[] }) {
             body: JSON.stringify({ points: stops.map((s) => ({ lat: s.lat, lng: s.lng })) }),
           });
           if (res.ok) {
-            const data = (await res.json()) as { path: { lat: number; lng: number }[] };
+            const data = (await res.json()) as {
+              path: { lat: number; lng: number }[];
+              distanceMeters: number | null;
+              durationSeconds: number | null;
+            };
             roadPoints = data.path ?? [];
+            if (typeof data.distanceMeters === "number" && typeof data.durationSeconds === "number") {
+              setRoadSummary({ distanceMeters: data.distanceMeters, durationSeconds: data.durationSeconds });
+            }
           }
         } catch {
-          // 무시하고 직선 fallback 사용
+          // 무시하고 직선 fallback 사용 — 참고 정보(roadSummary)도 노출하지 않는다.
         }
 
         const linePath =
@@ -107,31 +122,47 @@ export default function RouteMap({ stops }: { stops: RouteStop[] }) {
   }, []);
 
   return (
-    <div className="relative w-full rounded-2xl overflow-hidden border border-border shadow-sm" style={{ height: 300 }}>
-      <div ref={mapRef} style={{ width: "100%", height: "100%" }} />
+    <div className="w-full rounded-2xl overflow-hidden border border-border shadow-sm">
+      <div className="relative w-full" style={{ height: 300 }}>
+        <div ref={mapRef} style={{ width: "100%", height: "100%" }} />
 
-      {status === "loading" && (
-        <div className="absolute inset-0 flex items-center justify-center bg-muted">
-          <p className="text-foreground/60 text-sm">지도 불러오는 중...</p>
-        </div>
-      )}
-      {status === "error" && (
-        <div className="absolute inset-0 flex items-center justify-center bg-muted">
-          <p className="text-foreground/60 text-sm">지도를 불러올 수 없습니다</p>
-        </div>
-      )}
+        {status === "loading" && (
+          <div className="absolute inset-0 flex items-center justify-center bg-muted">
+            <p className="text-foreground/60 text-sm">지도 불러오는 중...</p>
+          </div>
+        )}
+        {status === "error" && (
+          <div className="absolute inset-0 flex items-center justify-center bg-muted">
+            <p className="text-foreground/60 text-sm">지도를 불러올 수 없습니다</p>
+          </div>
+        )}
 
-      {/* 범례는 캔버스 마커(WORK_COLOR/LIFE_COLOR 고정 hex)와 색 맞춰야 해서 다크모드 토큰 미적용, 고정 라이트 스타일 유지 */}
-      {status === "ready" && (
-        <div className="absolute bottom-3 left-3 bg-white/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow text-xs flex gap-3">
-          <span className="flex items-center gap-1.5 text-gray-900">
-            <span className="w-3 h-3 rounded-full inline-block" style={{ background: WORK_COLOR }} />
-            워크스팟
+        {/* 범례는 캔버스 마커(WORK_COLOR/LIFE_COLOR 고정 hex)와 색 맞춰야 해서 다크모드 토큰 미적용, 고정 라이트 스타일 유지 */}
+        {status === "ready" && (
+          <div className="absolute bottom-3 left-3 bg-white/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow text-xs flex gap-3">
+            <span className="flex items-center gap-1.5 text-gray-900">
+              <span className="w-3 h-3 rounded-full inline-block" style={{ background: WORK_COLOR }} />
+              워크스팟
+            </span>
+            <span className="flex items-center gap-1.5 text-gray-900">
+              <span className="w-3 h-3 rounded-full inline-block" style={{ background: LIFE_COLOR }} />
+              라이프스팟
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* 도로 기준 참고 정보(옵션 E-2/R6) — /api/directions가 실패하면 roadSummary가 null로 남아
+          이 블록 자체가 렌더링되지 않는다(기존 RouteMap 폴백 패턴과 동일하게 조용히 생략).
+          일정표(schedule)의 "가정 속도 기반 추정치"와 다른 값·다른 출처임을 라벨로 명확히 구분한다. */}
+      {status === "ready" && roadSummary && (
+        <div className="bg-background border-t border-border px-4 py-2.5 text-xs text-foreground/70 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+          <span className="font-semibold text-foreground/80">도로 경로 기준(카카오모빌리티)</span>
+          <span>
+            총 이동거리 약 {(roadSummary.distanceMeters / 1000).toFixed(1)}km · 약{" "}
+            {Math.max(1, Math.round(roadSummary.durationSeconds / 60))}분
           </span>
-          <span className="flex items-center gap-1.5 text-gray-900">
-            <span className="w-3 h-3 rounded-full inline-block" style={{ background: LIFE_COLOR }} />
-            라이프스팟
-          </span>
+          <span className="text-foreground/40">· 참고용이며, 위 일정표의 이동시간은 가정 속도 기반 추정치입니다</span>
         </div>
       )}
     </div>
