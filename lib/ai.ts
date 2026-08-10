@@ -218,23 +218,91 @@ function buildLifeSpotsContext(spots: LifeSpot[]): string {
     .join("\n");
 }
 
+// 옵션 D-②(2026-08-10): 검색 쿼리(freeText/UNVERIFIABLE_PREFERENCES)가 있을 때만, 정적 라이프스팟
+// 코퍼스(89곳, "lifespots" 네임스페이스)에서 검색된 id에 한해 "동일 거리 구간(bin) 안에서만"
+// 의미 점수로 타이브레이크한다. bin width(250m)는 n=10 실측(docs/AGENT_DESIGN.md "D-② bin width
+// 실측" 절)으로 정했다 — 감으로 정하지 않았다. 후보(250/500/1000m) 중 의미 있는 재정렬 효과가
+// 이미 나타나면서(10건 중 8건 후보 구성 변화) 재정렬 폭(worst-case 이동 거리)이 가장 작은 값을
+// 택했다 — bin이 넓을수록 후보 변화 폭도 커짐을 실측으로 확인(500m/1000m는 9/10, 변경 규모도 더 큼).
+//
+// 위치기반(옵션 A)/이벤트(옵션 B) 후보는 애초에 색인 대상이 아니므로 semanticScores 맵에 절대
+// 들어오지 않는다 — id 접두어로 구분하지 않고 "검색 결과에 실제로 매칭됐는가"로만 판별한다
+// (developer 착수 전 pm-analyst 요구사항 1-4절).
+const LIFE_SPOT_BIN_WIDTH_KM = 0.25;
+
+function distanceBin(km: number, binWidthKm: number): number {
+  return Math.floor(km / binWidthKm);
+}
+
+// 정렬 키를 "쌍(pair) 비교 함수"가 아니라 "항목별 튜플"로 미리 계산해 둔다. 처음에는
+// compare(a,b)가 "같은 bin이면 점수, 다르면 거리"를 그때그때 판단하는 pairwise 비교 함수였는데,
+// 실측(2026-08-10, bin=250m 1차 실측)에서 c6(0.83→10.13km, +1121%)·c8(3.01→9.12km, +203%) 같은
+// 비정상적으로 큰 이상치가 나와 원인을 추적한 결과 comparator가 推移律(transitivity)을 위반하는
+// 버그였다 — 같은 bin 안에 점수 있는 항목 2개 + 점수 없는 항목 1개가 섞이면
+// (예: a(d=0.05,점수) / b(d=0.20,무점수) / c(d=0.24,점수 99))
+// compare(a,b)=거리비교(a가 앞) / compare(b,c)=거리비교(b가 앞) / compare(a,c)=점수비교(c가 앞)
+// 가 동시에 성립해 a<b<c 이면서 c<a인 순환이 생긴다. Array.prototype.sort는 강한 약순서
+// (strict weak ordering)를 전제하므로, 이런 비교자를 주면 결과가 엔진/입력 순서에 따라
+// 사실상 임의로 뒤섞일 수 있다(위 이상치의 실제 원인). 항목별 튜플 키
+// `[bin, hasScore ? -score : 0, distance]`로 사전 계산해 사전식(lexicographic) 비교만 하면
+// 이 문제가 원천적으로 없다 — 각 항목의 키는 상대방과 무관하게 고정되므로 어떤 두 항목을
+// 비교해도 항상 같은 결과가 나오고(추이율 성립), Array.sort에 안전하다.
+//
+// 이 설계에서 "같은 bin" 안에서는 점수 있는 항목이 항상 점수 없는 항목보다 앞선다(2번째 키가
+// 음수 vs 0). "동일 거리 구간을 사실상 동률로 보고 그 안에서 관련도 순으로 재배열한다"는
+// bin 타이브레이커의 원래 취지와 일치하는 선택이다 — 점수 없는 항목끼리는 3번째 키(거리)로만
+// 순서가 갈려 원래 순서를 그대로 유지한다("중립").
+function lifeSpotSortKey(
+  spot: LifeSpot,
+  distanceToNearest: (s: LifeSpot) => number,
+  semanticScores: Map<string, number> | null,
+  binWidthKm: number
+): readonly [number, number, number] {
+  const d = distanceToNearest(spot);
+  // semanticScores가 없으면(검색 쿼리 없음, 또는 색인 미설정/실패/매칭 0건) 1번째 키를 거리
+  // 자체로 둬 bin 개념 없이 순수 거리 정렬로 귀결시킨다 — 옵션 D-② 이전과 완전히 동일한 순서가
+  // 나온다(회귀 없음, 요구사항 R2-1). 2·3번째 키는 동률(0/d)이라 실질적으로 개입하지 않는다.
+  if (!semanticScores) return [d, 0, d] as const;
+  const score = semanticScores.get(spot.id);
+  return [distanceBin(d, binWidthKm), score !== undefined ? -score : 0, d] as const;
+}
+
+function compareSortKeys(a: readonly [number, number, number], b: readonly [number, number, number]): number {
+  return a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+}
+
 // 관광지/식당 후보를 워크스팟 후보 목록과 무관하게 API 순서 그대로 자르면, 실제로는
 // 강릉 반대편에 있는 곳이 섞여 들어와 동선 거리가 크게 벌어질 수 있다. 워크스팟 후보들과의
 // 최단 거리를 기준으로 가까운 순서로 정렬한 뒤, 카테고리 균형(식당 확보)을 맞춰 자른다.
 function balanceLifeSpots(
   spots: LifeSpot[],
   workSpotRefs: { lat: number; lng: number }[],
-  limit: number
+  limit: number,
+  semanticScores: Map<string, number> | null = null
 ): LifeSpot[] {
   const distanceToNearest = (spot: LifeSpot): number =>
     workSpotRefs.length === 0
       ? 0
       : Math.min(...workSpotRefs.map((ref) => calculateHaversineDistance(spot.lat, spot.lng, ref.lat, ref.lng)));
 
-  const sorted = [...spots].sort((a, b) => distanceToNearest(a) - distanceToNearest(b));
+  // 정렬 도중 매번 다시 계산하지 않도록 키를 한 번씩만 구해 Map에 캐싱한다(항목 수 × 워크스팟
+  // 참조 수 만큼의 하버사인 계산이 정렬 비교마다 반복되는 것을 피함 — 기존 코드도 없었지만
+  // 튜플 키 도입으로 호출 빈도가 늘어난 김에 함께 정리).
+  const keyById = new Map<string, readonly [number, number, number]>();
+  const keyOf = (spot: LifeSpot) => {
+    let key = keyById.get(spot.id);
+    if (!key) {
+      key = lifeSpotSortKey(spot, distanceToNearest, semanticScores, LIFE_SPOT_BIN_WIDTH_KM);
+      keyById.set(spot.id, key);
+    }
+    return key;
+  };
+  const compare = (a: LifeSpot, b: LifeSpot) => compareSortKeys(keyOf(a), keyOf(b));
+
+  const sorted = [...spots].sort(compare);
   const food = sorted.filter((s) => s.category === "food").slice(0, Math.max(3, Math.floor(limit / 3)));
   const rest = sorted.filter((s) => s.category !== "food").slice(0, limit - food.length);
-  return [...rest, ...food].sort((a, b) => distanceToNearest(a) - distanceToNearest(b));
+  return [...rest, ...food].sort(compare);
 }
 
 // 옵션 A(2026-08-05): 워크스팟 후보 좌표 기준 위치기반 API 후보를 지역 기반 후보에 union한다.
@@ -862,7 +930,27 @@ export async function curateRoute(
     nonStaySpots,
     options.fetchNearbyLifeSpots
   );
-  const lifeSpots = balanceLifeSpots(lifeSpotCandidates, workSpots, 15);
+  // 옵션 D-②: rankCandidates(워크스팟 랭킹)와 동일한 searchQuery를 재사용해 "lifespots"
+  // 네임스페이스에 쿼리 1건만 임베딩·검색한다(문서 재임베딩 없음, D-①과 동일 패턴). 반환된 id 중
+  // 이번 요청의 lifeSpotCandidates(정적 코퍼스+위치기반+이벤트 union)와 겹치는 것만 점수를 준다 —
+  // 위치기반/이벤트 후보는 애초에 색인되지 않아 겹칠 수 없으므로 이 교집합 자체가 스코프 제한을
+  // 코드로 보장한다(1-4절). queryTopK가 null(미설정/실패)이거나 매칭이 0건이면 semanticScores를
+  // null로 두어 balanceLifeSpots가 기존과 동일한 순수 거리 비교로 동작한다.
+  const lifeSearchQuery = buildSearchQuery(request);
+  let lifeSpotSemanticScores: Map<string, number> | null = null;
+  if (lifeSearchQuery) {
+    const candidateIds = new Set(lifeSpotCandidates.map((s) => s.id));
+    const vectorIds = await queryTopK(lifeSearchQuery, Math.max(lifeSpotCandidates.length, 30), "lifespots");
+    if (vectorIds) {
+      const scoreMap = new Map<string, number>();
+      vectorIds.forEach((id, idx) => {
+        if (candidateIds.has(id)) scoreMap.set(id, vectorIds.length - idx);
+      });
+      if (scoreMap.size > 0) lifeSpotSemanticScores = scoreMap;
+    }
+  }
+
+  const lifeSpots = balanceLifeSpots(lifeSpotCandidates, workSpots, 15, lifeSpotSemanticScores);
 
   if (activeCheckablePreferences.length > 0 && strictMatchCount < MIN_PREFERENCE_MATCHES) {
     const route = await generateOnce(request, workSpots, lifeSpots);
