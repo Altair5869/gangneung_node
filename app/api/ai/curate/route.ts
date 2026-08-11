@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { curateRoute } from "@/lib/ai";
 import { buildSpotCorpus, buildLifeSpotCorpus, buildNearbyLifeSpotCorpus, buildEventLifeSpotCorpus } from "@/lib/spot-corpus";
 import { CurationRequest, WorkSpot, LifeSpot } from "@/types";
+import { todayKST, addDaysKST } from "@/lib/utils";
 
 // spots/lifeSpots는 워크스팟/라이프스팟 전체 객체가 아니라 id 문자열 배열이다. 클라이언트는
 // "이 id들을 후보로 써 달라"는 힌트만 보내고, 실제 필드 값은 아래에서 서버 코퍼스로 전량
@@ -53,6 +54,15 @@ export const maxDuration = 120;
 // curateRoute가 곧바로 workStyle/duration/preferences에 의존하므로(예: filterByPreferences,
 // distanceThresholdFor) 형태가 맞는지만 확인한다. 값의 의미(예: workStyle이 실제로 유효한
 // 카테고리인지)는 curateRoute/validateRoute의 책임 범위이므로 여기서는 검증하지 않는다.
+// visitDate(옵션 B 후속, R8): 버튼 3개(오늘/내일/모레)짜리 UI라도 클라이언트가 보낸 값을 그대로
+// 신뢰하지 않는다(옵션 K 원칙과 동일). 옵셔널이라 없으면 통과(기존과 동일하게 "오늘" 동작),
+// 있으면 (a) YYYYMMDD 형식이고 (b) todayKST() ~ addDaysKST(2) 범위 안인지 서버가 재검증한다.
+function isValidVisitDate(v: unknown): v is string | undefined {
+  if (v === undefined) return true;
+  if (typeof v !== "string" || !/^\d{8}$/.test(v)) return false;
+  return v >= todayKST() && v <= addDaysKST(2);
+}
+
 function isValidCurationRequest(value: unknown): value is CurationRequest {
   if (!value || typeof value !== "object") return false;
   const v = value as Record<string, unknown>;
@@ -60,7 +70,8 @@ function isValidCurationRequest(value: unknown): value is CurationRequest {
     typeof v.workStyle === "string" &&
     typeof v.duration === "number" &&
     VALID_DURATIONS.includes(v.duration) &&
-    Array.isArray(v.preferences)
+    Array.isArray(v.preferences) &&
+    isValidVisitDate(v.visitDate)
   );
 }
 
@@ -87,7 +98,7 @@ export async function POST(request: NextRequest) {
       {
         error: "invalid_curation_request",
         message:
-          `curationRequest 필드에 workStyle(문자열), duration(${VALID_DURATIONS.join("/")} 중 하나), preferences(배열)가 필요합니다.`,
+          `curationRequest 필드에 workStyle(문자열), duration(${VALID_DURATIONS.join("/")} 중 하나), preferences(배열)가 필요합니다. visitDate를 지정하는 경우 YYYYMMDD 형식이면서 오늘~+2일 범위 안이어야 합니다.`,
       },
       { status: 400 }
     );
@@ -120,7 +131,7 @@ export async function POST(request: NextRequest) {
     // 없음 — 어느 페이지도 이벤트 id를 클라이언트에 내려주지 않음)로 동일한 DI 패턴으로 주입한다.
     const route = await curateRoute(body.curationRequest, verifiedSpots, verifiedLifeSpots, {
       fetchNearbyLifeSpots: buildNearbyLifeSpotCorpus,
-      fetchEvents: buildEventLifeSpotCorpus,
+      fetchEvents: (date) => buildEventLifeSpotCorpus(date),
     });
     return NextResponse.json({ route });
   } catch (error) {

@@ -164,11 +164,18 @@ export async function getAttractionList(areaCode = "32", sigunguCode = "1") {
 // ── 행사/축제 (contentTypeId=15, searchFestival2) ─────────
 // todayKST()는 lib/utils.ts로 이동했다(옵션 B, 2026-08-07) — lib/ai.ts의 event-date 검증도
 // 같은 로직이 필요해 공유 위치로 옮기고 여기서는 재사용만 한다.
+// date 인자(옵션 B 후속, 2026-08-11): 방문일 선택 UI(R9)가 "오늘/내일/모레" 기준으로 이벤트를
+// 조회할 수 있도록 eventStartDate 파라미터를 외부에서 주입 가능하게 열었다. 기본값은 기존과
+// 동일한 todayKST()라 무인자 호출부(app/events/page.tsx 등)는 그대로 호환된다.
 
-export async function getEventList(areaCode = "32", sigunguCode = "1"): Promise<EventApiItem[]> {
+export async function getEventList(
+  areaCode = "32",
+  sigunguCode = "1",
+  date = todayKST()
+): Promise<EventApiItem[]> {
   const params: Record<string, string> = {
     areaCode,
-    eventStartDate: todayKST(),
+    eventStartDate: date,
     numOfRows: "30",
     pageNo: "1",
   };
@@ -183,7 +190,7 @@ export async function getEventList(areaCode = "32", sigunguCode = "1"): Promise<
   // sigunguCode 제거 후 재시도 (강원도 전체에서 조회)
   const fallbackParams: Record<string, string> = {
     areaCode,
-    eventStartDate: todayKST(),
+    eventStartDate: date,
     numOfRows: "30",
     pageNo: "1",
   };

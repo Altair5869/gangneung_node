@@ -3,9 +3,9 @@
 import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { RouteStop, isLifeSpot, WorkSpot } from "@/types";
+import { RouteStop, LifeSpot, isLifeSpot, WorkSpot } from "@/types";
 import { SavedPlan, getPlans, savePlan, deletePlan, encodePlan, decodePlan } from "@/lib/planner-storage";
-import { cn, congestionLabel } from "@/lib/utils";
+import { cn, congestionLabel, formatEventDate } from "@/lib/utils";
 import { categoryLabel } from "@/lib/spot-visuals";
 
 export default function PlannerPage() {
@@ -215,6 +215,11 @@ function SpotRow({ spot, index }: { spot: RouteStop; index: number }) {
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-foreground truncate">{spot.name}</p>
         <p className="text-xs text-foreground/60 truncate">{spot.address}</p>
+        {life && (spot as LifeSpot).category === "event" && (spot as LifeSpot).eventStartDate && (spot as LifeSpot).eventEndDate && (
+          <p className="text-xs text-foreground/60 truncate">
+            행사 기간: {formatEventDate((spot as LifeSpot).eventStartDate!)} ~ {formatEventDate((spot as LifeSpot).eventEndDate!)}
+          </p>
+        )}
       </div>
       <span className="flex-shrink-0 text-xs px-2 py-0.5 rounded-full bg-muted text-foreground/60 font-medium">
         {categoryLabel[spot.category] ?? spot.category}

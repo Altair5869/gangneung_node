@@ -20,6 +20,31 @@ export function todayKST(): string {
   return `${y}${m}${d}`;
 }
 
+// KST 기준 오늘로부터 days일 후 날짜를 YYYYMMDD로 반환한다. todayKST()와 동일한 UTC+9 오프셋
+// 계산을 재사용한다 — app/ai-curator/page.tsx(R7, 방문일 버튼: 내일/모레)와
+// app/api/ai/curate/route.ts(R8, 서버 측 visitDate 범위 재검증)가 각자 로직을 복제하지 않고
+// 이 함수 하나를 공유한다(옵션 B 후속, 2026-08-11).
+export function addDaysKST(days: number): string {
+  const now = new Date();
+  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000 + days * 24 * 60 * 60 * 1000);
+  const y = kst.getUTCFullYear();
+  const m = String(kst.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(kst.getUTCDate()).padStart(2, "0");
+  return `${y}${m}${d}`;
+}
+
+// YYYYMMDD 문자열을 "YYYY년 M월 D일" 형태로 표시한다. 원래 app/events/page.tsx에만 있던 로컬
+// formatDate였으나, 이번 라운드에서 같은 포맷이 필요한 화면이 늘어나(ai-curator 결과 카드,
+// planner 저장 플랜 카드) 공유 위치로 옮겼다(R1, 옵션 B 후속, 2026-08-11) — 로직 복제 금지,
+// 원본은 여기 하나만 유지.
+export function formatEventDate(yyyymmdd: string): string {
+  if (!yyyymmdd || yyyymmdd.length < 8) return "";
+  const y = yyyymmdd.slice(0, 4);
+  const m = yyyymmdd.slice(4, 6).replace(/^0/, "");
+  const d = yyyymmdd.slice(6, 8).replace(/^0/, "");
+  return `${y}년 ${m}월 ${d}일`;
+}
+
 export function noiseLabel(noise: "언급됨-조용함" | "언급됨-시끄러움" | "언급없음") {
   if (noise === "언급없음") return "소음 미확인";
   return { "언급됨-조용함": "조용함 언급", "언급됨-시끄러움": "시끄러움 언급" }[noise];

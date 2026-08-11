@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { WorkSpot, LifeSpot, CurationRoute, isLifeSpot } from "@/types";
-import { cn, congestionLabel, isBarrierFree } from "@/lib/utils";
+import { cn, congestionLabel, isBarrierFree, formatEventDate, addDaysKST } from "@/lib/utils";
 import { categoryLabel, congestionStyle } from "@/lib/spot-visuals";
 import RouteMap from "@/components/map/RouteMap";
 import RouteVerificationCard from "@/components/curator/RouteVerificationCard";
@@ -33,6 +33,20 @@ const START_TIME_OPTIONS: { value: number | undefined; label: string }[] = [
   { value: 18, label: "오후 6시" },
 ];
 
+// 옵션 B 후속(2026-08-11, R7): 방문일 선택은 무제한 달력이 아니라 "오늘/내일/모레" 버튼 3개로
+// 좁힌다 — 관광공사 축제 API가 먼 미래까지 데이터를 채워두는지 라이브로 확인되지 않은 상태라,
+// 범위를 넓히면 "선택했는데 이벤트가 안 뜨는" 헛된 UI가 될 위험이 있다(pm-analyst 요구사항
+// 문서 배경 절 참고). 내일/모레 값은 addDaysKST(lib/utils.ts, todayKST()와 동일 KST 오프셋
+// 재사용)로 계산해, 서버 검증(app/api/ai/curate/route.ts)과 같은 날짜 산출 로직을 공유한다.
+// "오늘"이 요청 순간마다 바뀔 수 있으므로 모듈 상수가 아니라 렌더마다 재계산하는 함수로 둔다.
+function buildVisitDateOptions(): { value: string | undefined; label: string }[] {
+  return [
+    { value: undefined, label: "오늘" },
+    { value: addDaysKST(1), label: "내일" },
+    { value: addDaysKST(2), label: "모레" },
+  ];
+}
+
 // 클라이언트 타이머 기반 로딩 단계 문구 (옵션 G6, 2026-08-07).
 // 서버 상태를 실시간 반영하는 게 아니라 실측 응답 시간(route.ts 주석: 12.4~13.6초)에
 // 맞춘 "예상 진행 상황" 추정 표시일 뿐이다 — 퍼센트 바나 "검증 3/3 통과" 같은 확정 문구는
@@ -49,6 +63,8 @@ export default function AiCuratorPage() {
   const [workStyle, setWorkStyle] = useState(WORK_STYLES[0].value);
   const [duration, setDuration] = useState(4);
   const [startHour, setStartHour] = useState<number | undefined>(undefined);
+  const [visitDate, setVisitDate] = useState<string | undefined>(undefined);
+  const visitDateOptions = buildVisitDateOptions();
   const [preferences, setPreferences] = useState<string[]>([]);
   const [freeText, setFreeText] = useState("");
   const [loading, setLoading] = useState(false);
@@ -113,7 +129,7 @@ export default function AiCuratorPage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            curationRequest: { workStyle, duration, preferences, freeText: freeText.trim() || undefined, startHour },
+            curationRequest: { workStyle, duration, preferences, freeText: freeText.trim() || undefined, startHour, visitDate },
             spots: spots.map((s) => s.id),
             lifeSpots: lifeSpots.map((s) => s.id),
           }),
@@ -237,6 +253,27 @@ export default function AiCuratorPage() {
                     className={cn(
                       "flex-1 py-2.5 rounded-xl text-xs font-bold border transition-all",
                       startHour === opt.value
+                        ? "bg-accent text-on-accent border-accent shadow-sm"
+                        : "bg-muted text-foreground/60 border-border hover:border-accent/40 hover:bg-accent/5"
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+
+              <label className="text-sm font-semibold text-foreground/70 block mt-5 mb-3">
+                방문 예정일
+                <span className="ml-2 text-xs font-normal text-foreground/40">선택 — 행사/축제 조회 및 검증 기준일로 반영됩니다</span>
+              </label>
+              <div className="flex gap-2">
+                {visitDateOptions.map((opt) => (
+                  <button
+                    key={opt.label}
+                    onClick={() => setVisitDate(opt.value)}
+                    className={cn(
+                      "flex-1 py-2.5 rounded-xl text-xs font-bold border transition-all",
+                      visitDate === opt.value
                         ? "bg-accent text-on-accent border-accent shadow-sm"
                         : "bg-muted text-foreground/60 border-border hover:border-accent/40 hover:bg-accent/5"
                     )}
@@ -394,6 +431,11 @@ export default function AiCuratorPage() {
                             {spot.name}
                           </p>
                           <p className="text-xs text-foreground/60 mt-0.5 truncate">{spot.address}</p>
+                          {life && (spot as LifeSpot).category === "event" && (spot as LifeSpot).eventStartDate && (spot as LifeSpot).eventEndDate && (
+                            <p className="text-xs text-foreground/60 mt-1">
+                              행사 기간: {formatEventDate((spot as LifeSpot).eventStartDate!)} ~ {formatEventDate((spot as LifeSpot).eventEndDate!)}
+                            </p>
+                          )}
                           <div className="flex items-center gap-2 mt-2 flex-wrap">
                             <span
                               className={cn(
@@ -518,7 +560,7 @@ export default function AiCuratorPage() {
 
               {/* 다시 시작 */}
               <button
-                onClick={() => { setResult(null); setPreferences([]); setFreeText(""); setStartHour(undefined); setSavedPlanId(null); setShowSaveForm(false); }}
+                onClick={() => { setResult(null); setPreferences([]); setFreeText(""); setStartHour(undefined); setVisitDate(undefined); setSavedPlanId(null); setShowSaveForm(false); }}
                 className="w-full py-3 rounded-xl text-sm font-semibold text-foreground/60 border border-border hover:border-foreground/40 hover:text-foreground transition-all"
               >
                 다시 추천받기

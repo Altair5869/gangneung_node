@@ -218,12 +218,15 @@ export async function buildNearbyLifeSpotCorpus(refs: { lat: number; lng: number
 
 // ── 이벤트(축제/행사) 라이프스팟 후보 (옵션 B, 2026-08-07) ────────────────────
 //
-// getEventList()는 좌표가 아니라 지역(areaCode/sigunguCode)+오늘 날짜(todayKST()) 기준 조회라
+// getEventList()는 좌표가 아니라 지역(areaCode/sigunguCode)+날짜(기본 todayKST()) 기준 조회라
 // buildNearbyLifeSpotCorpus처럼 워크스팟 좌표를 인자로 받을 필요가 없다. 실패/0건이면 빈 배열을
 // 반환해 기존 buildNearbyLifeSpotCorpus의 폴백 패턴과 동일하게 curateRoute가 중단되지 않는다.
-export async function buildEventLifeSpotCorpus(): Promise<LifeSpot[]> {
+// date 인자(옵션 B 후속, 2026-08-11): 방문일 선택 UI(R9)가 선택한 날짜를 그대로 getEventList에
+// 전달한다. 기본값을 주지 않고 getEventList 자체의 기본값(todayKST())에 위임해, 무인자 호출부와
+// 동작이 어긋나지 않게 한다.
+export async function buildEventLifeSpotCorpus(date?: string): Promise<LifeSpot[]> {
   try {
-    const items = await getEventList();
+    const items = await getEventList(undefined, undefined, date);
     return items.filter(hasValidCoords).map(mapEventToLifeSpot);
   } catch (error) {
     console.error("[spot-corpus] event life spot fetch failed:", error);

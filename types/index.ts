@@ -35,6 +35,12 @@ export interface CurationRequest {
   startLocation?: string;
   freeText?: string;
   startHour?: number;
+  // 옵션 B 후속(2026-08-11): 방문 예정일(YYYYMMDD, eventStartDate/eventEndDate와 동일 포맷).
+  // 미지정 시 기존과 완전히 동일하게 "오늘"(todayKST()) 기준으로 동작한다 — 과거 저장된
+  // 플랜/공유 링크·직접 API 호출자는 이 필드가 없어도 깨지지 않는다(하위 호환).
+  // 값은 서버(app/api/ai/curate/route.ts의 isValidCurationRequest)가 오늘~+2일 범위로
+  // 재검증한다 — 클라이언트가 보낸 값을 그대로 신뢰하지 않는다(옵션 K 원칙).
+  visitDate?: string;
 }
 
 export interface LifeSpot {

@@ -2,19 +2,12 @@ import { getEventList } from "@/lib/tourism-api";
 import { mapTourismToEventSpot } from "@/lib/tourism-mapper";
 import { EventSpot } from "@/types";
 import { EventApiItem } from "@/types";
+import { formatEventDate } from "@/lib/utils";
 
 export const metadata = {
   title: "강릉 행사/축제 | 강릉 노드",
   description: "한국관광공사 공식 데이터 기반 강릉 행사 및 축제 정보",
 };
-
-function formatDate(yyyymmdd: string): string {
-  if (!yyyymmdd || yyyymmdd.length < 8) return "";
-  const y = yyyymmdd.slice(0, 4);
-  const m = yyyymmdd.slice(4, 6).replace(/^0/, "");
-  const d = yyyymmdd.slice(6, 8).replace(/^0/, "");
-  return `${y}년 ${m}월 ${d}일`;
-}
 
 function getStatus(startDate: string, endDate: string): "ongoing" | "upcoming" | "ended" {
   const today = new Date();
@@ -132,9 +125,9 @@ function EventCard({ event, status }: { event: EventSpot; status: "ongoing" | "u
         <div className="mt-auto">
           {(event.startDate || event.endDate) && (
             <p className="text-xs text-foreground/70 font-medium">
-              {formatDate(event.startDate)}
+              {formatEventDate(event.startDate)}
               {event.endDate && event.endDate !== event.startDate && (
-                <> ~ {formatDate(event.endDate)}</>
+                <> ~ {formatEventDate(event.endDate)}</>
               )}
             </p>
           )}

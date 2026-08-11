@@ -311,10 +311,13 @@ function balanceLifeSpots(
 // 실패·0건이면 base(지역 기반 후보)를 그대로 돌려줘 큐레이션이 중단되지 않는다.
 type NearbyLifeSpotFetcher = (refs: { lat: number; lng: number }[]) => Promise<LifeSpot[]>;
 
-// 옵션 B(2026-08-07): getEventList()는 좌표가 아니라 지역+오늘 날짜 기준 조회라 NearbyLifeSpotFetcher와
-// 달리 인자가 없다. fetchNearbyLifeSpots와 동일한 DI 패턴(lib/ai.ts는 관광공사 API 모듈을 직접
+// 옵션 B(2026-08-07): getEventList()는 좌표가 아니라 지역+날짜 기준 조회라 NearbyLifeSpotFetcher와
+// 달리 좌표 인자가 없다. fetchNearbyLifeSpots와 동일한 DI 패턴(lib/ai.ts는 관광공사 API 모듈을 직접
 // import하지 않는다)으로 조회 함수만 주입받는다.
-type EventLifeSpotFetcher = () => Promise<LifeSpot[]>;
+// 옵션 B 후속(2026-08-11): 방문일 선택 UI(R10)를 위해 date 인자를 받도록 확장했다. curateRoute가
+// request.visitDate ?? todayKST()로 계산한 referenceDate를 넘겨준다 — lib/ai.ts는 여전히 관광공사
+// API 모듈을 직접 import하지 않고, 날짜 산출 로직도 todayKST()/addDaysKST() 재사용으로만 이뤄진다.
+type EventLifeSpotFetcher = (date: string) => Promise<LifeSpot[]>;
 
 // 같은 장소를 관광공사와 카카오가 서로 다른 id로 반환하는 일이 실제로 있다 —
 // `스타벅스 강릉강문해변점`은 라이프스팟 `food-3536360`이면서 워크스팟 `kakao-397693663`이고,
@@ -429,7 +432,7 @@ async function generateOnce(
   // validateRoute의 event-date 코드 검증이 하므로, 여기서는 "기간을 참고하라"는 힌트만 준다 —
   // 재질문(self-critique) 없음.
   const eventHintLine = lifeSpots.some((s) => s.category === "event")
-    ? "\n관광지/라이프스팟 후보 중 (행사/축제)로 표시된 항목은 '기간' 필드가 오늘 방문 가능한지 참고하세요."
+    ? "\n관광지/라이프스팟 후보 중 (행사/축제)로 표시된 항목은 '기간' 필드가 방문 예정일에 방문 가능한지 참고하세요."
     : "";
   // 옵션 D-①: 정렬 안내 문구 노출 조건을 freeText 단독 체크에서 "합성 검색 쿼리(freeText +
   // 선택된 UNVERIFIABLE_PREFERENCES)가 비어있지 않음"으로 넓힌다 — rankCandidates가 실제로
@@ -611,20 +614,27 @@ function validateRoute(
 
   // 옵션 B(2026-08-07): 행사/축제 날짜 검증. 사용자 preference 토글이 아니라 "동선에 이벤트가
   // 포함됐는가"라는 콘텐츠 조건에 좌우되는 항상-활성 구조적 체크(food-included/workspot-count와
-  // 동일 분류) — 동선에 이벤트가 없으면 자명하게 통과이고, 있으면 오늘(KST) 날짜가 시작~종료
-  // 기간 안인지 코드로 검증한다. eventStartDate/eventEndDate는 관광공사 API가 그대로 제공하는
-  // 확정 사실 데이터라(해석·주관 개입 없음) barrierFree와 같은 근거로 pass/fail 게이트로 쓴다
-  // (CLAUDE.md 데이터 규칙 4 연장, 방문일 UI가 없으므로 "오늘"을 암묵적 방문일로 취급 — 설계
-  // 한계로 이미 인지됨, 버그 아님).
+  // 동일 분류) — 동선에 이벤트가 없으면 자명하게 통과이고, 있으면 기준일이 시작~종료 기간 안인지
+  // 코드로 검증한다. eventStartDate/eventEndDate는 관광공사 API가 그대로 제공하는 확정 사실
+  // 데이터라(해석·주관 개입 없음) barrierFree와 같은 근거로 pass/fail 게이트로 쓴다(CLAUDE.md
+  // 데이터 규칙 4 연장).
+  // 옵션 B 후속(2026-08-11): request.visitDate가 있으면 그 날짜를 기준일로 쓰고, 없으면 기존과
+  // 동일하게 todayKST()를 쓴다("오늘"을 암묵적 방문일로 취급하던 이전 동작과 완전히 동일).
   const eventStops = route.spots.filter(
     (s): s is LifeSpot => isLifeSpot(s) && s.category === "event" && !!s.eventStartDate && !!s.eventEndDate
   );
-  const today = todayKST();
+  const referenceDate = request.visitDate ?? todayKST();
   const eventViolations = eventStops.filter(
-    (s) => !(s.eventStartDate! <= today && today <= s.eventEndDate!)
+    (s) => !(s.eventStartDate! <= referenceDate && referenceDate <= s.eventEndDate!)
   );
+  // 문구 분기(R11): 방문일을 명시적으로 선택했다면 "오늘"이라는 표현이 사실과 어긋나므로
+  // "방문 예정일(YYYYMMDD) 기준"으로, 미지정이면 기존처럼 "오늘 YYYYMMDD"로 표기한다(원래 문구와
+  // 완전히 동일한 형태 유지). checks[].detail(아래)에서는 날짜 중복 표기를 피하기 위해 짧은
+  // 버전(referenceDateShortLabel)을 따로 쓴다.
+  const referenceDateLabel = request.visitDate ? `방문 예정일(${referenceDate}) 기준` : `오늘 ${referenceDate}`;
+  const referenceDateShortLabel = request.visitDate ? `방문 예정일 ${referenceDate}` : "오늘";
   eventViolations.forEach((s) => {
-    pushStructural(`행사 기간이 아닙니다: ${s.name} (${s.eventStartDate}~${s.eventEndDate}, 오늘 ${today})`);
+    pushStructural(`행사 기간이 아닙니다: ${s.name} (${s.eventStartDate}~${s.eventEndDate}, ${referenceDateLabel})`);
   });
 
   // 각 필드 상태 문구는 반드시 lib/utils의 라벨 헬퍼를 거친다 — 여기서 한국어 상태 문자열을
@@ -679,7 +689,7 @@ function validateRoute(
         eventStops.length === 0
           ? "동선에 포함된 행사/축제가 없습니다"
           : eventStops
-              .map((s) => `${s.name} · ${s.eventStartDate}~${s.eventEndDate}${eventViolations.includes(s) ? " (오늘 기간 아님)" : ""}`)
+              .map((s) => `${s.name} · ${s.eventStartDate}~${s.eventEndDate}${eventViolations.includes(s) ? ` (${referenceDateShortLabel} 기간 아님)` : ""}`)
               .join(", "),
     },
   ];
@@ -901,8 +911,11 @@ export async function curateRoute(
   // 교훈 재사용: 관련성 높은 후보를 무조건 늘리면 거리가 오히려 회귀할 수 있음). 실패해도
   // 파이프라인이 중단되지 않도록 여기서도 방어적으로 catch한다(buildEventLifeSpotCorpus 자체가
   // 이미 빈 배열로 폴백하지만, DI로 다른 구현이 주입될 가능성에 대비한 이중 방어).
+  // 옵션 B 후속(2026-08-11): request.visitDate가 있으면 그 날짜, 없으면 기존과 동일하게
+  // todayKST() 기준으로 이벤트를 조회한다 — visitDate 미지정 시 완전히 동일한 동작을 보장한다.
+  const referenceDate = request.visitDate ?? todayKST();
   const eventLifeSpots = options.fetchEvents
-    ? await options.fetchEvents().catch((error) => {
+    ? await options.fetchEvents(referenceDate).catch((error) => {
         console.error("[ai] 이벤트 라이프스팟 조회 실패 — 이벤트 없이 진행:", error);
         return [] as LifeSpot[];
       })
