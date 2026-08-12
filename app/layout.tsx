@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import NavMenu from "@/components/NavMenu";
+import SessionProviderWrapper from "@/components/SessionProviderWrapper";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -19,15 +20,17 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: NO_FLASH_THEME_SCRIPT }} />
       </head>
       <body className="min-h-full flex flex-col bg-background text-foreground">
-        <header className="bg-background border-b border-border sticky top-0 z-50">
-          <nav className="relative max-w-6xl mx-auto px-4 h-14 flex items-center gap-8">
-            <Link href="/" className="font-bold text-lg tracking-tight flex-shrink-0 text-foreground">
-              강릉 노드
-            </Link>
-            <NavMenu />
-          </nav>
-        </header>
-        <main className="flex-1">{children}</main>
+        <SessionProviderWrapper>
+          <header className="bg-background border-b border-border sticky top-0 z-50">
+            <nav className="relative max-w-6xl mx-auto px-4 h-14 flex items-center gap-8">
+              <Link href="/" className="font-bold text-lg tracking-tight flex-shrink-0 text-foreground">
+                강릉 노드
+              </Link>
+              <NavMenu />
+            </nav>
+          </header>
+          <main className="flex-1">{children}</main>
+        </SessionProviderWrapper>
       </body>
     </html>
   );

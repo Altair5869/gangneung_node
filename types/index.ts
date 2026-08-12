@@ -26,6 +26,46 @@ export interface WorkSpot {
     parking?: boolean;
     exit?: boolean;
   };
+  // 커뮤니티 검증 체크인(2026-08-11 신규): VERIFIED_SPOTS(실측 24곳)와 null(미확인) 사이의
+  // 세 번째 신뢰 계층. optional인 이유는 체크인 0건 스팟이 실제로 존재하고, 이 필드가 없는
+  // 기존 저장 플랜(localStorage wk_plans)/공유 링크 역직렬화가 깨지면 안 되기 때문이다.
+  // 필드명은 CurationRoute.verification(AI 큐레이터 코드 검증 결과)과 의미가 완전히 다르므로
+  // "communityVerification"이 아니라 "communityCheckin"을 쓴다(요구사항 문서 4-③).
+  communityCheckin?: CommunityCheckinSummary;
+}
+
+// checkin:{spotId}:{userId} 에 저장되는 사용자별 최신 체크인 원본(R4-1). 사용자당 스팟당
+// 최신 1건만 유지(덮어쓰기) — spotId/userId는 Redis 키에 이미 있으므로 값에는 담지 않는다.
+export interface CheckinRecord {
+  wifiAvailable: boolean;
+  powerLevel: "충분함" | "제한적" | "없음";
+  submittedAt: string; // ISO8601
+}
+
+// checkin:agg:{spotId} 에 저장되는 스팟별 누적 집계(R4-2, Redis Hash). "가장 최근 상태"가
+// 아니라 누적 카운트다 — Wilson score interval 계산에 표본 크기가 필요하기 때문(설계 문서).
+export interface CheckinAggregate {
+  wifiYes: number;
+  wifiNo: number;
+  powerCounts: { "충분함": number; "제한적": number; "없음": number };
+  totalCheckins: number;
+}
+
+// GET /api/spots, GET /api/spots/[id] 응답에 병합되는 커뮤니티 신뢰도 요약(R5). confirmedAvailable/
+// confirmedLevel은 반드시 boolean|null / (레벨)|null이다 — Wilson 하한이 임계값 미달이면 무조건
+// null(정보 부족)이고, 체크인이 1건이라도 있다고 성급하게 true/false를 채우지 않는다(R6-1, 데이터
+// 규칙 1의 취지를 신규 필드에도 동일하게 적용).
+export interface CommunityCheckinSummary {
+  totalCheckins: number;
+  wifi: {
+    yes: number;
+    no: number;
+    confirmedAvailable: boolean | null;
+  };
+  power: {
+    counts: { "충분함": number; "제한적": number; "없음": number };
+    confirmedLevel: "충분함" | "제한적" | "없음" | null;
+  };
 }
 
 export interface CurationRequest {

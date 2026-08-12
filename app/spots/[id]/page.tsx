@@ -4,6 +4,10 @@ import { noiseLabel, congestionLabel, cn, isBarrierFree } from "@/lib/utils";
 import WorkEnvScore from "@/components/spots/WorkEnvScore";
 import { categoryLabel, categoryGradient, noiseBadge, congestionStyle, BARRIER_FREE_FIELDS } from "@/lib/spot-visuals";
 import { getSpotById } from "@/lib/spot-detail";
+import { auth } from "@/auth";
+import { getUserCheckin } from "@/lib/community-checkin";
+import CommunityBadge from "@/components/checkin/CommunityBadge";
+import CheckinForm from "@/components/checkin/CheckinForm";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +20,12 @@ export default async function SpotDetailPage({
   // /api/spots/[id] 라우트와 동일한 조회·병합 함수를 직접 호출한다(셀프 fetch 제거).
   const spot = await getSpotById(id);
   if (!spot) notFound();
+
+  // 커뮤니티 체크인(2026-08-11 신규): 로그인 상태일 때만 본인의 최신 체크인을 조회한다.
+  // 세션은 요청 컨텍스트에 종속적이라 getSpotById(spot 조회+커뮤니티 요약 병합)와는 별도로
+  // 이 페이지가 직접 auth()를 호출한다 — /api/spots/[id] 라우트도 동일한 패턴을 쓴다.
+  const session = await auth();
+  const myCheckin = session?.user?.id ? await getUserCheckin(id, session.user.id) : null;
 
   const gradient = categoryGradient[spot.category] ?? categoryGradient.other;
 
@@ -151,11 +161,20 @@ export default async function SpotDetailPage({
                 </span>
               ))}
             </div>
+
+            {/* 커뮤니티 확인 배지 (R7-1) — VERIFIED_SPOTS(실측) 배지와 다른 스타일(점선 테두리) */}
+            <div>
+              <h2 className="text-sm font-bold text-foreground/40 uppercase tracking-widest mb-3">커뮤니티 검증</h2>
+              <CommunityBadge summary={spot.communityCheckin} variant="full" />
+            </div>
           </div>
 
           {/* 오른쪽: 사이드바 */}
           <div className="space-y-4">
             <WorkEnvScore spot={spot} />
+
+            {/* 체크인하기 (R2, R7-2) */}
+            <CheckinForm spotId={spot.id} myCheckin={myCheckin} />
 
             {/* 지도 자리 */}
             <div className="bg-muted border border-border rounded-2xl h-44 flex flex-col items-center justify-center gap-1 text-foreground/40">

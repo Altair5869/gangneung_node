@@ -2,6 +2,7 @@ import Link from "next/link";
 import { WorkSpot } from "@/types";
 import { cn, noiseLabel, congestionLabel, powerLabel, isBarrierFree } from "@/lib/utils";
 import { categoryLabel, categoryGradient, noiseBadge, powerBadge, congestionStyle } from "@/lib/spot-visuals";
+import CommunityBadge from "@/components/checkin/CommunityBadge";
 
 export default function SpotCard({ spot }: { spot: WorkSpot }) {
   return (
@@ -81,6 +82,8 @@ export default function SpotCard({ spot }: { spot: WorkSpot }) {
                 무장애
               </span>
             )}
+            {/* R7-3: 목록 카드는 축약 배지만, 상세 수치는 상세 페이지에서만 */}
+            <CommunityBadge summary={spot.communityCheckin} variant="compact" />
           </div>
 
           {/* 영업시간 + 태그 */}

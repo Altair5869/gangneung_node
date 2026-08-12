@@ -12,7 +12,8 @@ import { mapTourismToWorkSpot, mapBarrierFreeToWorkSpot, mapTourismToLifeSpot, m
 import { getKakaoCafes } from "@/lib/kakao-local-api";
 import { estimateCongestion, looksLikeCafe } from "@/lib/utils";
 import { VERIFIED_SPOTS, mergeVerifiedFields } from "@/lib/verified-spots";
-import { WorkSpot, LifeSpot, TourismApiItem } from "@/types";
+import { getCheckinSummaries } from "@/lib/community-checkin";
+import { WorkSpot, LifeSpot, TourismApiItem, CommunityCheckinSummary } from "@/types";
 
 const WORKATION_KEYWORDS = [
   "카페", "커피", "coffee", "cafe",
@@ -98,7 +99,24 @@ export async function buildSpotCorpus(plannedTime?: Date): Promise<WorkSpot[]> {
       congestion: cMap.get(v.tourismContentId ?? "") ?? estimateCongestion(v.id, plannedTime),
     }));
 
-    return [...overridden, ...missingVerified];
+    const allSpots = [...overridden, ...missingVerified];
+
+    // 커뮤니티 체크인 요약(2026-08-11 신규, R5-3): 스팟 200여 곳에 개별 Redis 요청을 보내지
+    // 않고 파이프라인 1회 왕복으로 일괄 조회한다(getCheckinSummaries가 내부에서 처리, N+1 금지).
+    // 이 조회가 실패해도 관광공사/카카오 데이터는 이미 확보했으므로, 바깥 catch로 전체를
+    // VERIFIED_SPOTS까지 축소시키지 않고 이 단계만 조용히 건너뛴다.
+    let summaries = new Map<string, CommunityCheckinSummary>();
+    try {
+      summaries = await getCheckinSummaries(allSpots.map((s) => s.id));
+    } catch (error) {
+      console.error("[spot-corpus] community checkin summary fetch failed:", error);
+    }
+    if (summaries.size === 0) return allSpots;
+
+    return allSpots.map((s) => {
+      const communityCheckin = summaries.get(s.id);
+      return communityCheckin ? { ...s, communityCheckin } : s;
+    });
   } catch {
     return VERIFIED_SPOTS;
   }

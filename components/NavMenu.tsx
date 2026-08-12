@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { applyTheme, getStoredTheme, type Theme } from "@/lib/theme";
+import AuthButton from "@/components/AuthButton";
 
 const NAV_LINKS = [
   { href: "/spots", label: "워크스팟" },
@@ -48,6 +49,7 @@ export default function NavMenu() {
             {label}
           </Link>
         ))}
+        <AuthButton />
         <ThemeToggle theme={theme} onToggle={toggleTheme} />
       </div>
 
@@ -83,6 +85,9 @@ export default function NavMenu() {
               {label}
             </Link>
           ))}
+          <div className="px-6 py-3.5 border-t border-border">
+            <AuthButton />
+          </div>
         </div>
       )}
     </>
