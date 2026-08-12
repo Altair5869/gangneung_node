@@ -212,3 +212,29 @@ export async function checkCheckinRateLimit(userId: string, spotId: string): Pro
 
   return { allowed: true };
 }
+
+// GET /api/checkins/eligibility 전용 레이트리밋. 이 엔드포인트는 로그인 전에도 호출 가능해야
+// 하므로(버튼 활성화 여부를 미리 보여줘야 함) 계정 기준(userId)을 쓸 수 없다 — IP 기준으로
+// 제한한다. "UI 힌트용, 비용 있는 스팟 조회(getSpotById) 1회"라는 성격을 감안해 계정
+// 레이트리밋(20/시간)보다 넉넉하게, 같은 사람이 짧은 시간에 스팟 상세를 여러 번 열람하며
+// 위치를 확인하는 상황을 허용한다. 이 라우트는 여전히 보안 경계가 아니다(권위 있는 판정은
+// POST /api/checkins) — 어뷰징/비용 방어 목적의 가벼운 제한일 뿐이다.
+export const ELIGIBILITY_IP_RATELIMIT_PER_MINUTE = 30;
+
+const eligibilityRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(ELIGIBILITY_IP_RATELIMIT_PER_MINUTE, "1 m"),
+  prefix: "ratelimit:checkin:eligibility",
+});
+
+export async function checkEligibilityRateLimit(ip: string): Promise<RateLimitResult> {
+  const result = await eligibilityRatelimit.limit(ip);
+  if (!result.success) {
+    return {
+      allowed: false,
+      reason: "요청이 너무 많아요. 잠시 후 다시 시도해주세요.",
+      retryAfterSeconds: Math.max(0, Math.ceil((result.reset - Date.now()) / 1000)),
+    };
+  }
+  return { allowed: true };
+}
