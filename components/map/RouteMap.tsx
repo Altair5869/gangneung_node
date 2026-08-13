@@ -159,7 +159,8 @@ export default function RouteMap({ stops }: { stops: RouteStop[] }) {
         <div className="bg-background border-t border-border px-4 py-2.5 text-xs text-foreground/70 flex flex-wrap items-baseline gap-x-2 gap-y-1">
           <span className="font-semibold text-foreground/80">도로 경로 기준(카카오모빌리티)</span>
           <span>
-            총 이동거리 약 {(roadSummary.distanceMeters / 1000).toFixed(1)}km · 약{" "}
+            전체 경로 총 이동거리 약 {(roadSummary.distanceMeters / 1000).toFixed(1)}km
+            ({Math.max(1, stops.length - 1)}개 구간 합산) · 약{" "}
             {Math.max(1, Math.round(roadSummary.durationSeconds / 60))}분
           </span>
           <span className="text-foreground/40">· 참고용이며, 위 일정표의 이동시간은 가정 속도 기반 추정치입니다</span>

@@ -793,7 +793,17 @@ function estimateTravelMinutes(distanceKm: number): number {
 // 코드가 계산한다. 워크스팟은 요청한 업무 시간만큼, 식당은 1시간, 관광지/휴식은 45분으로 고정 배분.
 // 스팟 사이 이동 구간은 하버사인 거리를 estimateTravelMinutes로 환산한 추정치이며(옵션 E),
 // 별도 배열 원소로 삽입하고 다음 스팟 시작 시각을 그만큼 뒤로 민다.
+//
+// 버그 2 수정(2026-08-13): freeText("저녁은 무조건 ...")가 order 배열에는 반영되지만(식당이 마지막
+// 순서로 배치됨), buildSchedule은 순서의 의미를 모르고 그냥 누적 cursor로 시각을 계산하던 것이
+// 문제였다(6회 재현 전부 식당이 14시경 배치). "저녁" 키워드 매칭은 inferNoise(lib/tourism-mapper.ts,
+// lib/kakao-local-api.ts)의 제목 키워드 단순 포함 검사 패턴을 그대로 따른다 — 새 NLP 파싱 없음.
+// 이번 라운드는 "저녁"만 처리한다("점심"/"아침"은 범위 밖, pm-analyst 진단 문서 참고).
+const EVENING_KEYWORD = "저녁";
+const EVENING_START_MIN = 17 * 60; // 17:00
+
 function buildSchedule(spots: RouteStop[], request: CurationRequest, startHour: number): string[] {
+  const hasEveningConstraint = (request.freeText ?? "").includes(EVENING_KEYWORD);
   let cursor = startHour * 60;
   const result: string[] = [];
   spots.forEach((spot, i) => {
@@ -803,6 +813,14 @@ function buildSchedule(spots: RouteStop[], request: CurationRequest, startHour: 
       const travelMin = estimateTravelMinutes(distanceKm);
       cursor += travelMin;
       result.push(`이동 약 ${travelMin}분 (${distanceKm.toFixed(1)}km · 추정)`);
+    }
+    // "저녁" 키워드 + 이 스팟이 식당이면 시작 시각 하한을 17:00으로 무조건 강제한다(예외 없음).
+    // 이미 자연스럽게 17:00을 넘겼다면(cursor >= EVENING_START_MIN) 그대로 두고, 그 전이면
+    // 남는 시간을 "자유시간"으로 명시해 일정표에서 조용히 사라지지 않게 한다.
+    const isEveningFood = hasEveningConstraint && isLifeSpot(spot) && spot.category === "food";
+    if (isEveningFood && cursor < EVENING_START_MIN) {
+      result.push(`자유시간 (${formatClock(cursor)}~${formatClock(EVENING_START_MIN)})`);
+      cursor = EVENING_START_MIN;
     }
     const blockMin = isLifeSpot(spot) ? (spot.category === "food" ? 60 : 45) : request.duration * 60;
     const start = formatClock(cursor);
