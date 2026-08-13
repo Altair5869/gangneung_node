@@ -1,15 +1,9 @@
 import { NextResponse } from "next/server";
-import { getFoodList } from "@/lib/tourism-api";
-import { mapTourismToFoodSpot } from "@/lib/tourism-mapper";
-import { looksLikeCafe } from "@/lib/utils";
+import { buildFoodSpots } from "@/lib/spot-corpus";
 
 export async function GET() {
   try {
-    const items = await getFoodList();
-    const spots = items
-      .filter((item) => item.mapx && item.mapy && parseFloat(item.mapx) !== 0)
-      .filter((item) => !looksLikeCafe(item.title))
-      .map(mapTourismToFoodSpot);
+    const spots = await buildFoodSpots();
     return NextResponse.json({ spots });
   } catch {
     return NextResponse.json({ spots: [] });

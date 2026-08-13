@@ -9,10 +9,11 @@ import {
   getEventList,
 } from "@/lib/tourism-api";
 import { mapTourismToWorkSpot, mapBarrierFreeToWorkSpot, mapTourismToLifeSpot, mapTourismToFoodSpot, mapTourismToStaySpot, mapEventToLifeSpot } from "@/lib/tourism-mapper";
-import { getKakaoCafes } from "@/lib/kakao-local-api";
+import { getKakaoCafes, getKakaoRestaurants } from "@/lib/kakao-local-api";
 import { estimateCongestion, looksLikeCafe } from "@/lib/utils";
 import { VERIFIED_SPOTS, mergeVerifiedFields } from "@/lib/verified-spots";
 import { getCheckinSummaries } from "@/lib/community-checkin";
+import { calculateHaversineDistance } from "@/lib/ai";
 import { WorkSpot, LifeSpot, TourismApiItem, CommunityCheckinSummary } from "@/types";
 
 const WORKATION_KEYWORDS = [
@@ -125,15 +126,59 @@ export async function buildSpotCorpus(plannedTime?: Date): Promise<WorkSpot[]> {
 const hasValidCoords = (item: TourismApiItem): boolean =>
   Boolean(item.mapx) && Boolean(item.mapy) && parseFloat(item.mapx) !== 0;
 
+// R1(2026-08-13): 관광공사 food(getFoodList) 결과가 못 잡는 가게가 실제로 있다("뉴솔향초당순두부"
+// 등, 관광공사 미등록). 카카오 FD6(getKakaoRestaurants)로 보강하되, 같은 가게가 두 소스에 다른
+// 표기로 각각 등록돼 있으면 중복 노출된다 — lib/ai.ts:332~344의 looksSamePlace/normalizeName
+// 패턴(50m 이내 + 이름 포함관계)을 LifeSpot vs LifeSpot용으로 시그니처만 바꿔 재사용한다.
+// lib/ai.ts가 export하는 건 calculateHaversineDistance뿐이라(원본 함수들은 모듈 비공개) 정규화·
+// 판정 로직 자체는 여기 새로 작성한다 — 상수(50m)와 판정 기준은 원본과 동일하게 유지.
+const FOOD_SAME_PLACE_KM = 0.05;
+
+function normalizeFoodName(name: string): string {
+  return name.toLowerCase().replace(/[\s()\-·.,'"]/g, "");
+}
+
+function looksSameFoodPlace(a: LifeSpot, b: LifeSpot): boolean {
+  const na = normalizeFoodName(a.name);
+  const nb = normalizeFoodName(b.name);
+  if (na.length < 2 || nb.length < 2) return false;
+  if (!na.includes(nb) && !nb.includes(na)) return false;
+  return calculateHaversineDistance(a.lat, a.lng, b.lat, b.lng) <= FOOD_SAME_PLACE_KM;
+}
+
+// /food, /api/food-spots, buildLifeSpotCorpus() 3곳이 각자 getFoodList() + looksLikeCafe 필터 +
+// mapTourismToFoodSpot을 개별 구현하면(R1 이전까지 실제로 그랬음) 이번에 추가되는 카카오 병합
+// 로직까지 3곳에 따로 넣을 경우 어긋날 위험이 크다(buildLifeSpotCorpus()의 기존 경고와 같은
+// 종류) — 그래서 병합 결과를 여기 한 곳에서 만들어 3곳 모두 이 함수를 쓰게 한다.
+export async function buildFoodSpots(): Promise<LifeSpot[]> {
+  const [tourismResult, kakaoResult] = await Promise.allSettled([getFoodList(), getKakaoRestaurants()]);
+
+  const tourismFood =
+    tourismResult.status === "fulfilled"
+      ? tourismResult.value.filter(hasValidCoords).filter((item) => !looksLikeCafe(item.title)).map(mapTourismToFoodSpot)
+      : [];
+
+  // 카카오 FD6 응답에도 디저트카페/베이커리가 섞여 나온다 — 관광공사 응답에 이미 쓰는 것과
+  // 동일한 looksLikeCafe 필터를 그대로 적용해 두 소스 간 필터 기준이 어긋나지 않게 한다.
+  const kakaoFoodRaw =
+    kakaoResult.status === "fulfilled" ? kakaoResult.value.filter((s) => !looksLikeCafe(s.name)) : [];
+
+  // 관광공사 쪽을 우선 채택한다(overview 등 서술형 필드가 있어 정보가 더 풍부) — 카카오 FD6
+  // 결과 중 관광공사와 같은 가게로 판정되는 항목만 제외한다.
+  const kakaoFood = kakaoFoodRaw.filter((k) => !tourismFood.some((t) => looksSameFoodPlace(t, k)));
+
+  return [...tourismFood, ...kakaoFood];
+}
+
 // /api/ai/curate가 클라이언트 제공 lifeSpots(id/필드)를 그대로 신뢰하지 않고 서버가 직접 조회한
 // 코퍼스와 대조하기 위한 함수(2026-07-28, P3 항목 1). /api/life-spots, /api/food-spots,
 // /api/stay-spots 3개 라우트와 완전히 동일한 조회·필터·매핑 로직을 여기 한 곳에 모아 공유한다 —
 // 다르게 구현하면 "실제 클라이언트가 받을 수 있었던 id 집합"과 검증 코퍼스가 어긋나서, 정상 id가
 // 부당하게 걸러지거나 반대로 필터를 우회한 id가 통과하는 사고가 날 수 있다.
 export async function buildLifeSpotCorpus(): Promise<LifeSpot[]> {
-  const [attractionResult, foodResult, stayResult] = await Promise.allSettled([
+  const [attractionResult, foodSpots, stayResult] = await Promise.allSettled([
     getAttractionList(),
-    getFoodList(),
+    buildFoodSpots(),
     getStayList(),
   ]);
 
@@ -142,12 +187,9 @@ export async function buildLifeSpotCorpus(): Promise<LifeSpot[]> {
       ? attractionResult.value.filter(hasValidCoords).map(mapTourismToLifeSpot)
       : [];
 
-  // /api/food-spots와 동일하게 카페처럼 보이는 이름은 제외한다 — 카페는 WorkSpot 코퍼스 쪽에서
-  // 이미 다루므로, 정상 클라이언트는 애초에 이 id를 받을 수 없다.
-  const food =
-    foodResult.status === "fulfilled"
-      ? foodResult.value.filter(hasValidCoords).filter((item) => !looksLikeCafe(item.title)).map(mapTourismToFoodSpot)
-      : [];
+  // R1(2026-08-13): 관광공사 단독 조회 대신 buildFoodSpots()(관광공사+카카오 FD6 병합, dedupe
+  // 포함)를 그대로 쓴다 — /api/food-spots, /food 페이지와 동일한 함수라 결과가 항상 일치한다.
+  const food = foodSpots.status === "fulfilled" ? foodSpots.value : [];
 
   const stay =
     stayResult.status === "fulfilled" ? stayResult.value.filter(hasValidCoords).map(mapTourismToStaySpot) : [];

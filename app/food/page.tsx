@@ -1,24 +1,18 @@
 import Link from "next/link";
-import { getFoodList } from "@/lib/tourism-api";
-import { mapTourismToFoodSpot } from "@/lib/tourism-mapper";
-import { looksLikeCafe } from "@/lib/utils";
+import { buildFoodSpots } from "@/lib/spot-corpus";
 import { LifeSpot } from "@/types";
 
 export const metadata = {
   title: "강릉 맛집 | 강릉 노드",
-  description: "한국관광공사 공식 데이터 기반 강릉 음식점 정보",
+  description: "한국관광공사·카카오 로컬 API 기반 강릉 음식점 정보",
 };
 
 export default async function FoodPage() {
   let spots: LifeSpot[] = [];
   try {
-    const items = await getFoodList();
-    spots = items
-      .filter((item) => item.mapx && item.mapy && parseFloat(item.mapx) !== 0)
-      .filter((item) => !looksLikeCafe(item.title))
-      .map(mapTourismToFoodSpot);
+    spots = await buildFoodSpots();
   } catch (err) {
-    console.error("[FoodPage] getFoodList failed:", err);
+    console.error("[FoodPage] buildFoodSpots failed:", err);
   }
 
   return (
@@ -28,7 +22,7 @@ export default async function FoodPage() {
           <p className="text-white/70 text-xs font-semibold tracking-widest uppercase mb-2">Food</p>
           <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">강릉 맛집 정보</h1>
           <p className="text-white/70 text-sm">
-            한국관광공사 공식 OpenAPI 기반 강릉 음식점 {spots.length}곳
+            한국관광공사·카카오 로컬 API 기반 강릉 음식점 {spots.length}곳
           </p>
         </div>
       </section>
@@ -47,7 +41,8 @@ export default async function FoodPage() {
           </div>
         )}
         <p className="mt-10 text-center text-xs text-foreground/60">
-          본 데이터는 한국관광공사 공공 OpenAPI (KorService2 · contentTypeId=39)를 활용합니다.
+          본 데이터는 한국관광공사 공공 OpenAPI (KorService2 · contentTypeId=39)와 카카오 로컬 API
+          (category_group_code=FD6)를 함께 활용합니다.
         </p>
       </div>
     </div>
