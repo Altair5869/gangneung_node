@@ -50,7 +50,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
     }),
   ],
-  session: { strategy: "jwt" }, // R1-1: 별도 세션 스토어 없이 JWT 세션만 사용
+  // R1-1: 별도 세션 스토어 없이 JWT 세션만 사용. maxAge는 Auth.js 기본값(30일) 대신 7일로
+  // 단축 — 서버 재시작과 무관하게 브라우저 쿠키가 살아있는 한 세션이 유지되는 JWT 세션의
+  // 정상 동작 자체는 바꾸지 않되(그건 버그가 아니라 설계), 만료 기간만 짧게 잡는다.
+  session: { strategy: "jwt", maxAge: 60 * 60 * 24 * 7 }, // 7일
   callbacks: {
     // JWT 세션에서는 session.user에 기본적으로 id가 없다. 체크인 레코드 키
     // (checkin:{spotId}:{userId})와 레이트리밋 식별자가 안정적인 사용자 id를 필요로 하므로,
