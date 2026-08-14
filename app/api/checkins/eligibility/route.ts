@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSpotById } from "@/lib/spot-detail";
 import { calculateHaversineDistance } from "@/lib/ai";
 import { CHECKIN_RADIUS_M, checkEligibilityRateLimit } from "@/lib/community-checkin";
+import { getClientIp } from "@/lib/http";
 
 // R2-2/R2-3 UI 요구사항("반경 밖이면 체크인하기 버튼이 비활성화되고 사유가 표시된다")을
 // POST 이전에 미리 보여주기 위한 보조 엔드포인트. R5 목록에는 없던 추가 파일이지만, 실제 반경
@@ -17,27 +18,9 @@ import { CHECKIN_RADIUS_M, checkEligibilityRateLimit } from "@/lib/community-che
 // 03-api-reference/04-functions/next-request.md의 Version History에서 확인) — 대신 헤더에서
 // 클라이언트 IP를 읽는다.
 //
-// 신뢰 경계 (중요, QA에서 헤더 스푸핑으로 레이트리밋 우회가 발견됨 — 커밋 39c330c 이후 강화):
-// - `x-forwarded-for`는 클라이언트가 요청에 직접 실어 보낼 수 있는 일반 헤더라서 그 값을 그대로
-//   믿으면 임의 문자열로 레이트리밋을 우회당한다.
-// - `x-vercel-forwarded-for`는 Vercel의 엣지 프록시가 클라이언트가 보낸 값을 무시하고 실제 접속
-//   IP로 덮어써서 설정하는 헤더다. **Vercel에 배포된 환경에서만** 신뢰할 수 있다.
-// - 로컬 개발(`npm run dev`)에는 이 프록시가 없으므로 `x-vercel-forwarded-for` 자체가 존재하지
-//   않는다. 그래서 개발 편의상 `x-forwarded-for` → `x-real-ip`로 폴백하지만, 로컬/비Vercel
-//   환경에서는 이 폴백 값도 여전히 스푸핑 가능하다 — 완전한 방어가 아니라 개발 편의를 위한
-//   타협이다. Vercel 이외의 환경에 배포한다면 그 인프라가 신뢰할 수 있는 별도 헤더로 교체해야 한다.
-function getClientIp(request: NextRequest): string {
-  const vercelForwardedFor = request.headers.get("x-vercel-forwarded-for");
-  if (vercelForwardedFor) {
-    return vercelForwardedFor.trim();
-  }
-  // 로컬 개발 폴백. 프록시 체인을 신뢰하지 않으므로 정교한 파싱은 하지 않고 첫 값만 취한다.
-  const forwardedFor = request.headers.get("x-forwarded-for");
-  if (forwardedFor) {
-    return forwardedFor.split(",")[0].trim();
-  }
-  return request.headers.get("x-real-ip") ?? "unknown";
-}
+// 신뢰 경계 주석 및 구현은 lib/http.ts의 getClientIp로 이동했다(회원가입/로그인 요구사항
+// 문서 7번 — auth.ts의 Credentials.authorize()도 동일 로직이 필요해 공통 유틸로 추출).
+// 동작은 원본과 동일, 이 라우트에서는 import해서 그대로 재사용한다.
 
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
