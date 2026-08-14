@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSession, signIn } from "next-auth/react";
 import { cn } from "@/lib/utils";
-import { CheckinRecord } from "@/types";
+import { CheckinProgress, CheckinRecord } from "@/types";
 
 interface CheckinFormProps {
   spotId: string;
@@ -38,6 +38,9 @@ export default function CheckinForm({ spotId, myCheckin }: CheckinFormProps) {
   const [powerLevel, setPowerLevel] = useState<PowerLevel | null>(myCheckin?.powerLevel ?? null);
   const [submitState, setSubmitState] = useState<"idle" | "submitting" | "success" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  // 체크인 챌린지/스탬프 투어 1차(배지 1종 MVP): 체크인 성공 직후에만 조회한다. 별도
+  // 마이페이지/배지 갤러리는 스코프 아님(요구사항 문서 "스코프 제외") — 이 폼 안에서만 표시.
+  const [progress, setProgress] = useState<CheckinProgress | null>(null);
 
   // 로그인 상태면 페이지 진입과 동시에 위치 권한을 요청한다 — R2-3: 권한 거부/실패 시 체크인
   // 자체를 차단하므로, 사용자가 폼을 만지기 전에 미리 판정해 버튼을 비활성 상태로 보여준다.
@@ -93,6 +96,13 @@ export default function CheckinForm({ spotId, myCheckin }: CheckinFormProps) {
         return;
       }
       setSubmitState("success");
+      // 진행률 조회 실패는 체크인 성공 자체를 가리지 않는다 — progress는 null로 남고
+      // 아래 성공 화면은 진행률 텍스트 없이 렌더링된다(getUserCheckinProgress의 안전한
+      // 기본값 반환 패턴과 동일한 원칙: 부가 정보 실패가 핵심 흐름을 막지 않음).
+      fetch("/api/checkins/progress")
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error("실패"))))
+        .then((data: CheckinProgress) => setProgress(data))
+        .catch(() => setProgress(null));
     } catch {
       setErrorMessage("네트워크 오류로 체크인에 실패했어요");
       setSubmitState("error");
@@ -114,8 +124,19 @@ export default function CheckinForm({ spotId, myCheckin }: CheckinFormProps) {
 
   if (submitState === "success") {
     return (
-      <div className="bg-good/10 border border-good/30 rounded-2xl p-4 text-sm text-good font-medium text-center">
-        체크인이 반영됐어요. 감사합니다!
+      <div className="bg-good/10 border border-good/30 rounded-2xl p-4 text-sm text-good font-medium text-center space-y-2">
+        <p>체크인이 반영됐어요. 감사합니다!</p>
+        {progress && progress.earned && (
+          <p className="text-xs font-bold">
+            배지 획득! 서로 다른 스팟 {progress.threshold}곳 체크인을 완료했어요 🎉
+          </p>
+        )}
+        {progress && !progress.earned && (
+          <p className="text-xs text-good/80">
+            {progress.distinctSpotCount}/{progress.threshold}곳 체크인 · 앞으로{" "}
+            {progress.threshold - progress.distinctSpotCount}곳 더!
+          </p>
+        )}
       </div>
     );
   }

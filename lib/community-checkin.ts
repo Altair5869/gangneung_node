@@ -1,6 +1,6 @@
 import { Redis } from "@upstash/redis";
 import { Ratelimit } from "@upstash/ratelimit";
-import { CheckinAggregate, CheckinRecord, CommunityCheckinSummary } from "@/types";
+import { CheckinAggregate, CheckinProgress, CheckinRecord, CommunityCheckinSummary } from "@/types";
 import { wilsonLowerBound } from "@/lib/wilson-score";
 
 // R3-4: 매직 넘버 금지, 이름 붙여 상수로 선언.
@@ -8,12 +8,20 @@ export const WIFI_CONFIRM_THRESHOLD = 0.6;
 export const POWER_MIN_SAMPLE = 3;
 export const POWER_MODAL_SHARE_THRESHOLD = 0.5;
 export const CHECKIN_RADIUS_M = 100;
+// 체크인 챌린지/스탬프 투어 1차(배지 1종 MVP): distinct 스팟 체크인 수가 이 값 이상이면 배지
+// 획득. Wilson score(신뢰도 승격)와는 독립 — 반경+레이트리밋을 통과해 성공 제출된 체크인의
+// distinct 스팟 수만 센다(요구사항 문서 2번). 향후 등급별 배지(스코프 제외)로 확장할 때도
+// 이 상수는 "1차 배지" 기준으로 유지하고 별도 상수를 추가한다.
+export const BADGE_CHECKIN_THRESHOLD = 5;
 
 const redis = Redis.fromEnv(); // UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN 자동 인식
 
 // R4-1/R4-2 키 스키마
 const recordKey = (spotId: string, userId: string) => `checkin:${spotId}:${userId}`;
 const aggKey = (spotId: string) => `checkin:agg:${spotId}`;
+// 배지 판정용 신규 Set(요구사항 문서 6번). 기존 checkin:* 프리픽스 체계를 그대로 확장 —
+// 새 SQL 테이블/새 DB 도입 없음. SADD는 멱등이라 같은 스팟 재제출해도 크기가 늘지 않는다.
+const userSpotsKey = (userId: string) => `checkin:user:${userId}:spots`;
 
 type PowerLevel = "충분함" | "제한적" | "없음";
 const POWER_LEVELS: readonly PowerLevel[] = ["충분함", "제한적", "없음"];
@@ -166,7 +174,29 @@ export async function submitCheckin(input: CheckinInput): Promise<void> {
   const record: CheckinRecord = { wifiAvailable, powerLevel, submittedAt: new Date().toISOString() };
   pipeline.set(key, record);
 
+  // 배지 판정용 distinct 스팟 인덱스(요구사항 문서 6번). 신규/재제출 구분 없이 항상 SADD —
+  // 멱등이라 재제출(같은 spotId)이어도 Set 크기가 늘지 않는다(distinct 카운트 보장).
+  pipeline.sadd(userSpotsKey(userId), spotId);
+
   await pipeline.exec();
+}
+
+// 배지 진행률 조회(요구사항 문서 3·6번). SCARD로 distinct 체크인 스팟 수를 읽고 임계값과
+// 비교한다. Redis 장애 시 getUserCheckin/getCheckinSummary와 동일한 try/catch 패턴으로
+// 흡수하고, "미달" 방향의 안전한 기본값(0곳/미획득)을 반환한다 — 이 실패가 POST
+// /api/checkins(체크인 제출 자체)를 막아서는 안 된다.
+export async function getUserCheckinProgress(userId: string): Promise<CheckinProgress> {
+  try {
+    const distinctSpotCount = await redis.scard(userSpotsKey(userId));
+    return {
+      distinctSpotCount,
+      threshold: BADGE_CHECKIN_THRESHOLD,
+      earned: distinctSpotCount >= BADGE_CHECKIN_THRESHOLD,
+    };
+  } catch (error) {
+    console.error("[community-checkin] getUserCheckinProgress 실패:", error);
+    return { distinctSpotCount: 0, threshold: BADGE_CHECKIN_THRESHOLD, earned: false };
+  }
 }
 
 // R2-5: 계정+스팟 조합 24시간에 1회, 계정 기준 1시간에 20회(전체 스팟 합산). 계정 단위를

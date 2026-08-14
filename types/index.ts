@@ -68,6 +68,16 @@ export interface CommunityCheckinSummary {
   };
 }
 
+// GET /api/checkins/progress 응답(R6, 체크인 챌린지/스탬프 투어 1차). distinctSpotCount는
+// checkin:user:{userId}:spots(Redis Set, SADD 멱등)의 SCARD 값 — Wilson score 검증 여부와
+// 무관하게 "성공 제출된 체크인"의 distinct 스팟 수만 센다(요구사항 문서 2번). wifi/power/noise
+// 필드는 이 판정에 전혀 관여하지 않는다.
+export interface CheckinProgress {
+  distinctSpotCount: number;
+  threshold: number;
+  earned: boolean;
+}
+
 export interface CurationRequest {
   workStyle: string;
   duration: number;
