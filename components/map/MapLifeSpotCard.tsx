@@ -34,6 +34,37 @@ export default function MapLifeSpotCard({
         <p className="px-4 pb-3 text-sm text-foreground/70 line-clamp-3">{spot.description}</p>
       )}
 
+      {/* 강릉시 주차 연동(2026-08-16): category "attraction"에서만 렌더링(요구사항 문서 5절).
+          spot.parking이 undefined(비-attraction)면 아예 안 그리고, attraction인데 빈 배열(매칭
+          없음/API 실패/키 미설정)이면 정직한 폴백 문구를 보여준다(AC3, AC5) — "실시간" 대신
+          "최근 확인된 주차 현황"을 쓴다. getParkRltm 응답에 갱신 시각 필드가 없음을 실호출로
+          확인했기 때문이다(AC4). */}
+      {spot.category === "attraction" && (
+        <div className="px-4 pb-3">
+          <p className="text-xs font-semibold text-foreground/60 mb-1.5">인근 주차장</p>
+          {spot.parking && spot.parking.length > 0 ? (
+            <ul className="space-y-1">
+              {spot.parking.map((lot) => (
+                <li
+                  key={lot.id}
+                  className="flex items-center justify-between text-xs bg-muted rounded-lg px-2.5 py-1.5"
+                >
+                  <span className="text-foreground/80 truncate mr-2">{lot.name}</span>
+                  <span className="text-foreground/60 whitespace-nowrap">
+                    {lot.availLots !== null && lot.totalLots !== null
+                      ? `잔여 ${lot.availLots}/${lot.totalLots}면`
+                      : "잔여 정보 없음"}
+                  </span>
+                </li>
+              ))}
+              <li className="text-[11px] text-foreground/40 pt-0.5">최근 확인된 주차 현황</li>
+            </ul>
+          ) : (
+            <p className="text-xs text-foreground/50">인근 주차 정보가 연동되지 않았어요</p>
+          )}
+        </div>
+      )}
+
       <div className="border-t border-border">
         <button
           onClick={onClose}

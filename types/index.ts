@@ -93,6 +93,18 @@ export interface CurationRequest {
   visitDate?: string;
 }
 
+// 강릉시 교통정보 조회서비스(getParkInfo/getParkRltm, data.go.kr 15140011)에서 매칭된
+// 주차장 1건. totalLots/availLots는 getParkRltm 응답을 parseInt한 값이라 이론상 null이
+// 될 수 있다(파싱 실패 시) — 표시 전용(display-only) 필드이므로 AI 큐레이터 검증
+// 로직(validateRoute)에는 사용하지 않는다(요구사항 문서 6절).
+export interface ParkingLot {
+  id: string;
+  name: string;
+  totalLots: number | null;
+  availLots: number | null;
+  distanceKm: number;
+}
+
 export interface LifeSpot {
   id: string;
   name: string;
@@ -109,6 +121,10 @@ export interface LifeSpot {
   // 기존 LifeSpot 객체는 이 필드가 없어도 옵셔널이라 하위 호환이 깨지지 않는다.
   eventStartDate?: string;
   eventEndDate?: string;
+  // 강릉시 주차 연동(2026-08-16): category === "attraction"일 때만 attachNearbyParking()이
+  // 채운다. undefined = 매칭 시도 안 함(attraction이 아님), 빈 배열 = 매칭 시도했지만 반경
+  // 내 주차장 없음/API 실패/키 미설정 — 둘 다 MapLifeSpotCard가 동일한 폴백 문구로 처리한다.
+  parking?: ParkingLot[];
 }
 
 export type RouteStop = WorkSpot | LifeSpot;
