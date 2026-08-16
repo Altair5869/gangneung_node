@@ -100,7 +100,14 @@ export async function buildSpotCorpus(plannedTime?: Date): Promise<WorkSpot[]> {
       congestion: cMap.get(v.tourismContentId ?? "") ?? estimateCongestion(v.id, plannedTime),
     }));
 
-    const allSpots = [...overridden, ...missingVerified];
+    // 워케이션 브라우징 화면(/spots, /map, /api/spots)에서 호텔을 노출하지 않기로 결정
+    // (2026-08-14). 병합(overridden/missingVerified) 이후, 커뮤니티 체크인 병합 이전인
+    // 최종 산출 직전 이 한 곳에서만 걸러 /spots·/map·/api/spots·벡터 색인이 전부 자동 반영되게
+    // 한다(buildFoodSpots() 통합 전례와 동일 원칙 — 화면단 개별 필터 금지).
+    // getAreaBasedList("32","1","32") 호출 자체는 유지한다 — inferCategory가 카페/코워킹/
+    // 도서관 키워드를 호텔보다 먼저 검사하므로, 이 카테고리 응답 중 호텔이 아닌 항목(호텔
+    // 라운지의 코워킹 공간 등)은 이 필터로 걸러지지 않고 그대로 살아남는다.
+    const allSpots = [...overridden, ...missingVerified].filter((s) => s.category !== "hotel");
 
     // 커뮤니티 체크인 요약(2026-08-11 신규, R5-3): 스팟 200여 곳에 개별 Redis 요청을 보내지
     // 않고 파이프라인 1회 왕복으로 일괄 조회한다(getCheckinSummaries가 내부에서 처리, N+1 금지).

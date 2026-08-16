@@ -21,7 +21,6 @@ const CATEGORIES: { value: WorkSpot["category"] | ""; label: string }[] = [
   { value: "cafe", label: "카페" },
   { value: "coworking", label: "코워킹" },
   { value: "library", label: "도서관" },
-  { value: "hotel", label: "호텔" },
   { value: "other", label: "기타" },
 ];
 
