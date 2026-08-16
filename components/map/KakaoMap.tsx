@@ -1,9 +1,10 @@
 "use client";
 
 import { useRef, useState, useEffect } from "react";
-import { WorkSpot } from "@/types";
+import { WorkSpot, LifeSpot } from "@/types";
 import { cn } from "@/lib/utils";
 import MapSpotCard from "./MapSpotCard";
+import MapLifeSpotCard from "./MapLifeSpotCard";
 
 const GANGNEUNG = { lat: 37.7519, lng: 128.8759 };
 
@@ -13,6 +14,10 @@ const CONGESTION_COLOR: Record<string, string> = {
   high: "#ef4444",
   default: "#6b7280",
 };
+
+// RouteMap.tsx의 LIFE_COLOR와 동일한 값(#B8511E) — 워크스팟(혼잡도 색 pill)과 명소(LifeSpot)
+// 핀을 시각적으로 구분하기 위해 이미 검증된 색을 재사용한다(요구사항 문서 3번, AC4).
+const LIFE_COLOR = "#B8511E";
 
 interface Filters {
   noise: string;
@@ -27,7 +32,7 @@ function isVisible(spot: WorkSpot, filters: Filters): boolean {
   return true;
 }
 
-export default function KakaoMap({ spots }: { spots: WorkSpot[] }) {
+export default function KakaoMap({ spots, lifeSpots = [] }: { spots: WorkSpot[]; lifeSpots?: LifeSpot[] }) {
   const mapRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mapObj = useRef<any>(null);
@@ -35,6 +40,7 @@ export default function KakaoMap({ spots }: { spots: WorkSpot[] }) {
   const overlaysRef = useRef<Array<{ overlay: any; spot: WorkSpot }>>([]);
 
   const [selectedSpot, setSelectedSpot] = useState<WorkSpot | null>(null);
+  const [selectedLifeSpot, setSelectedLifeSpot] = useState<LifeSpot | null>(null);
   const [filters, setFilters] = useState<Filters>({ noise: "", wifi: false, power: false });
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [errorMsg, setErrorMsg] = useState("");
@@ -65,6 +71,7 @@ export default function KakaoMap({ spots }: { spots: WorkSpot[] }) {
           el.textContent = spot.name;
           el.addEventListener("click", () => {
             setSelectedSpot(spot);
+            setSelectedLifeSpot(null);
             mapObj.current?.panTo(pos);
           });
 
@@ -77,6 +84,30 @@ export default function KakaoMap({ spots }: { spots: WorkSpot[] }) {
           });
 
           overlaysRef.current.push({ overlay, spot });
+        });
+
+        // 명소(LifeSpot) 레이어 — 워크스팟(둥근 알약 모양 혼잡도 pill)과 형태·색을 모두 달리해
+        // 시각적으로 구분한다(요구사항 문서 3번, AC4). 소음/wifi/전력 필터는 WorkSpot 전용 필드라
+        // LifeSpot엔 적용되지 않으므로 필터와 무관하게 항상 표시한다.
+        lifeSpots.forEach((life) => {
+          const pos = new window.kakao.maps.LatLng(life.lat, life.lng);
+
+          const el = document.createElement("div");
+          el.style.cssText = `background:${LIFE_COLOR};width:16px;height:16px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.3);border:2px solid #fff;`;
+          el.title = life.name;
+          el.addEventListener("click", () => {
+            setSelectedLifeSpot(life);
+            setSelectedSpot(null);
+            mapObj.current?.panTo(pos);
+          });
+
+          new window.kakao.maps.CustomOverlay({
+            map,
+            position: pos,
+            content: el,
+            yAnchor: 1,
+            zIndex: 2,
+          });
         });
 
         clearTimeout(timeoutTimer);
@@ -146,6 +177,7 @@ export default function KakaoMap({ spots }: { spots: WorkSpot[] }) {
       return { ...prev, [key]: !prev[key as "wifi" | "power"] };
     });
     setSelectedSpot(null);
+    setSelectedLifeSpot(null);
   };
 
   return (
@@ -245,12 +277,25 @@ export default function KakaoMap({ spots }: { spots: WorkSpot[] }) {
               </div>
             ))}
           </div>
+
+          {/* 명소(LifeSpot) 레이어 범례 — 워크스팟 마커(원형 pill)와 다른 물방울 모양 마커임을
+              색 견본으로도 안내한다(RouteMap.tsx의 LIFE_COLOR 범례와 동일한 색). */}
+          <div className="border-t border-border pt-2 flex items-center gap-1.5">
+            <span
+              className="w-2.5 h-2.5 inline-block"
+              style={{ background: LIFE_COLOR, borderRadius: "50% 50% 50% 0", transform: "rotate(-45deg)" }}
+            />
+            <span className="text-xs text-foreground/70">명소(관광지·문화시설)</span>
+          </div>
         </div>
       )}
 
       {/* 선택된 장소 카드 */}
       {selectedSpot && (
         <MapSpotCard spot={selectedSpot} onClose={() => setSelectedSpot(null)} />
+      )}
+      {selectedLifeSpot && (
+        <MapLifeSpotCard spot={selectedLifeSpot} onClose={() => setSelectedLifeSpot(null)} />
       )}
     </div>
   );

@@ -34,11 +34,17 @@ function isWorkationSpot(name: string): boolean {
 // 공유해야 하므로, 관광공사/카카오 API 병합·중복 제거·실측 데이터 오버라이드 로직을 여기 한 곳에 둔다.
 export async function buildSpotCorpus(plannedTime?: Date): Promise<WorkSpot[]> {
   try {
+    // 지역 필터 파라미터: "32"/"1"은 legacy areaCode/sigunguCode 값이라 여기서 literal로
+    // 넘기면 getAreaBasedList/getBarrierFreeList의 새 기본값(lDongRegnCd=51/lDongSignguCd=150)이
+    // 가려져 레거시 버그 수정이 이 호출부에서만 무효화된다(2026-08-16 발견, 요구사항 문서 1절
+    // 대상 함수 시그니처는 유지하되 여기서도 신규 법정동 코드를 명시적으로 넘긴다).
+    // getCongestionMap("32","1")은 별개 API 패밀리(TatsCnctrRateService, areaCd/signguCd)라
+    // 이번 수정 대상이 아니므로 그대로 둔다(요구사항 문서 "스코프 밖" 절).
     const [foodResult, culturalResult, accommodationResult, barrierFreeResult, kakaoCafes, congestionMap] = await Promise.allSettled([
-      getAreaBasedList("32", "1", "39"), // 음식점 (카페 포함)
-      getAreaBasedList("32", "1", "14"), // 문화시설 (도서관, 문화원 등)
-      getAreaBasedList("32", "1", "32"), // 숙박 (호텔 라운지 등)
-      getBarrierFreeList("32", "1"),
+      getAreaBasedList("51", "150", "39"), // 음식점 (카페 포함)
+      getAreaBasedList("51", "150", "14"), // 문화시설 (도서관, 문화원 등)
+      getAreaBasedList("51", "150", "32"), // 숙박 (호텔 라운지 등)
+      getBarrierFreeList("51", "150"),
       getKakaoCafes(),
       getCongestionMap("32", "1"),
     ]);
@@ -104,7 +110,7 @@ export async function buildSpotCorpus(plannedTime?: Date): Promise<WorkSpot[]> {
     // (2026-08-14). 병합(overridden/missingVerified) 이후, 커뮤니티 체크인 병합 이전인
     // 최종 산출 직전 이 한 곳에서만 걸러 /spots·/map·/api/spots·벡터 색인이 전부 자동 반영되게
     // 한다(buildFoodSpots() 통합 전례와 동일 원칙 — 화면단 개별 필터 금지).
-    // getAreaBasedList("32","1","32") 호출 자체는 유지한다 — inferCategory가 카페/코워킹/
+    // getAreaBasedList("51","150","32") 호출 자체는 유지한다 — inferCategory가 카페/코워킹/
     // 도서관 키워드를 호텔보다 먼저 검사하므로, 이 카테고리 응답 중 호텔이 아닌 항목(호텔
     // 라운지의 코워킹 공간 등)은 이 필터로 걸러지지 않고 그대로 살아남는다.
     const allSpots = [...overridden, ...missingVerified].filter((s) => s.category !== "hotel");
@@ -299,4 +305,51 @@ export async function buildEventLifeSpotCorpus(date?: string): Promise<LifeSpot[
     console.error("[spot-corpus] event life spot fetch failed:", error);
     return [];
   }
+}
+
+// ── /map 전용 명소 레이어 (Option B, 2026-08-16) ──────────────────────────
+//
+// buildLifeSpotCorpus()의 attraction 카테고리는 getAttractionList()(contentTypeId=12,
+// numOfRows=30)만 조회한다 — AI 큐레이터 동선 추천용으로 설계된 상한이라, /map이 요구하는
+// "강릉 관광지를 빠짐없이 보여주기"에는 맞지 않는다(실측 totalCount=149건, numOfRows=30이면
+// 대부분 잘림 — 예: 주문진해변은 100건 범위 밖). 또 오죽헌·아르떼뮤지엄 강릉 같은 문화시설은
+// contentTypeId=14라 getAttractionList()가 애초에 조회하지 않는 카테고리다. 그래서 buildLifeSpotCorpus를
+// 고치는 대신(동선 추천 쪽 30건 상한/거리 랭킹에 영향 줄 수 있음) /map 전용 함수를 따로 둔다.
+//
+// numOfRows: contentTypeId=12는 totalCount 실측 149건(요구사항 문서 1절)이라 200으로 여유를 둔다.
+// contentTypeId=14는 실측 32건이라 getAreaBasedList 기본값(50)으로 충분하다.
+//
+// 중복 제거: buildSpotCorpus()가 이미 문화시설(14) 중 워케이션 키워드(카페/도서관 등)에 맞는
+// 항목을 WorkSpot으로 채택한다(예: 이름에 "도서관"이 들어간 문화시설). 같은 장소가 명소 레이어에도
+// LifeSpot으로 뜨면 지도에 중복 핀이 표시되므로, 호출부(app/map/page.tsx)가 buildSpotCorpus()
+// 결과에서 뽑은 tourismContentId 집합을 받아 그 안에 있는 항목은 제외한다(bfContentIds 패턴,
+// 위 buildSpotCorpus() 74~77행과 동일한 방식).
+export async function buildMapAttractionSpots(workSpotContentIds: Set<string>): Promise<LifeSpot[]> {
+  const [attractionResult, culturalResult] = await Promise.allSettled([
+    getAreaBasedList(undefined, undefined, "12", "200"),
+    getAreaBasedList(undefined, undefined, "14", "50"),
+  ]);
+
+  if (attractionResult.status === "rejected") {
+    console.error("[spot-corpus] map attraction (12) fetch failed:", attractionResult.reason);
+  }
+  if (culturalResult.status === "rejected") {
+    console.error("[spot-corpus] map cultural facility (14) fetch failed:", culturalResult.reason);
+  }
+
+  const rawItems = [
+    ...(attractionResult.status === "fulfilled" ? attractionResult.value : []),
+    ...(culturalResult.status === "fulfilled" ? culturalResult.value : []),
+  ];
+
+  const byId = new Map<string, LifeSpot>();
+  rawItems
+    .filter(hasValidCoords)
+    .filter((item) => !workSpotContentIds.has(item.contentid))
+    .forEach((item) => {
+      const spot = mapTourismToLifeSpot(item);
+      if (!byId.has(spot.id)) byId.set(spot.id, spot);
+    });
+
+  return [...byId.values()];
 }

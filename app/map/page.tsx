@@ -1,5 +1,5 @@
 import KakaoMap from "@/components/map/KakaoMap";
-import { buildSpotCorpus } from "@/lib/spot-corpus";
+import { buildSpotCorpus, buildMapAttractionSpots } from "@/lib/spot-corpus";
 
 // 셀프 fetch가 cache:"no-store"였을 때와 동일하게 요청마다 렌더한다. 이걸 빼면 이 페이지는
 // buildSpotCorpus 내부 fetch의 revalidate:3600을 물려받아 1시간 ISR로 정적 프리렌더되는데,
@@ -14,9 +14,16 @@ export default async function MapPage() {
   // 자신이 아니라 localhost로 요청해 목록이 전부 빈다). 이 페이지는 쿼리 파라미터를 쓰지
   // 않으므로 /api/spots의 noise/wifi/power/barrierFree 필터 로직은 필요하지 않다.
   const spots = await buildSpotCorpus();
+  // 명소 레이어는 WorkSpot 코퍼스와 중복 표시되면 안 되므로(요구사항 문서 AC3), spots에서
+  // 이미 채택된 tourismContentId 집합을 먼저 만들어 buildMapAttractionSpots에 넘긴다
+  // (bfContentIds 패턴, lib/spot-corpus.ts의 buildSpotCorpus 참고).
+  const workSpotContentIds = new Set(
+    spots.map((s) => s.tourismContentId).filter((id): id is string => Boolean(id))
+  );
+  const lifeSpots = await buildMapAttractionSpots(workSpotContentIds);
   return (
     <div className="h-[calc(100vh-3.5rem)]">
-      <KakaoMap spots={spots} />
+      <KakaoMap spots={spots} lifeSpots={lifeSpots} />
     </div>
   );
 }

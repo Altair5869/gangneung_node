@@ -51,11 +51,22 @@ function extractItems(data: TourismApiResponse, endpoint = "unknown"): TourismAp
 
 // ── 국문 관광정보 ──────────────────────────────────────────
 
-export async function getAreaBasedList(areaCode = "32", sigunguCode = "1", contentTypeId?: string) {
+// 지역 필터 파라미터: areaCode/sigunguCode(레거시 지역코드)는 오죽헌(129784)·아르떼뮤지엄
+// 강릉(2804197) 등 실제 존재하는 강릉 콘텐츠를 응답에서 누락시킨다(실측: contentTypeId=14
+// 기준 11건 vs lDongRegnCd/lDongSignguCd 기준 32건). 한국관광공사 TourAPI(KorService2 계열)가
+// 법정동 코드(lDongRegnCd=51 강원/lDongSignguCd=150 강릉)를 정식 지원함을 라이브 API 호출로
+// 확인했다(요구사항 문서 1절). 매개변수명(areaCode/sigunguCode)은 기존 호출부 호환을 위해
+// 유지하고, 실제로 API에 보내는 쿼리 파라미터 키만 lDongRegnCd/lDongSignguCd로 교체한다.
+export async function getAreaBasedList(
+  areaCode = "51",
+  sigunguCode = "150",
+  contentTypeId?: string,
+  numOfRows = "50"
+) {
   const params: Record<string, string> = {
-    areaCode,
-    sigunguCode,
-    numOfRows: "50",
+    lDongRegnCd: areaCode,
+    lDongSignguCd: sigunguCode,
+    numOfRows,
     pageNo: "1",
   };
   if (contentTypeId) params.contentTypeId = contentTypeId;
@@ -104,10 +115,10 @@ export async function getLocationBasedList(
 
 // ── 무장애 관광정보 ────────────────────────────────────────
 
-export async function getBarrierFreeList(areaCode = "32", sigunguCode = "1") {
+export async function getBarrierFreeList(areaCode = "51", sigunguCode = "150") {
   const data = await fetchApi<TourismApiResponse>(BARRIER_FREE_URL, "areaBasedList2", {
-    areaCode,
-    sigunguCode,
+    lDongRegnCd: areaCode,
+    lDongSignguCd: sigunguCode,
     numOfRows: "50",
     pageNo: "1",
   });
@@ -124,10 +135,10 @@ export async function getBarrierFreeDetail(contentId: string) {
 
 // ── 숙박 (contentTypeId=32) ───────────────────────────────
 
-export async function getStayList(areaCode = "32", sigunguCode = "1") {
+export async function getStayList(areaCode = "51", sigunguCode = "150") {
   const data = await fetchApi<TourismApiResponse>(KORSERVICE_URL, "areaBasedList2", {
-    areaCode,
-    sigunguCode,
+    lDongRegnCd: areaCode,
+    lDongSignguCd: sigunguCode,
     contentTypeId: "32",
     numOfRows: "30",
     pageNo: "1",
@@ -137,10 +148,10 @@ export async function getStayList(areaCode = "32", sigunguCode = "1") {
 
 // ── 음식점 (contentTypeId=39) ─────────────────────────────
 
-export async function getFoodList(areaCode = "32", sigunguCode = "1") {
+export async function getFoodList(areaCode = "51", sigunguCode = "150") {
   const data = await fetchApi<TourismApiResponse>(KORSERVICE_URL, "areaBasedList2", {
-    areaCode,
-    sigunguCode,
+    lDongRegnCd: areaCode,
+    lDongSignguCd: sigunguCode,
     contentTypeId: "39",
     numOfRows: "30",
     pageNo: "1",
@@ -150,10 +161,10 @@ export async function getFoodList(areaCode = "32", sigunguCode = "1") {
 
 // ── 관광지 (contentTypeId=12) ──────────────────────────────
 
-export async function getAttractionList(areaCode = "32", sigunguCode = "1") {
+export async function getAttractionList(areaCode = "51", sigunguCode = "150") {
   const data = await fetchApi<TourismApiResponse>(KORSERVICE_URL, "areaBasedList2", {
-    areaCode,
-    sigunguCode,
+    lDongRegnCd: areaCode,
+    lDongSignguCd: sigunguCode,
     contentTypeId: "12",
     numOfRows: "30",
     pageNo: "1",
@@ -169,17 +180,17 @@ export async function getAttractionList(areaCode = "32", sigunguCode = "1") {
 // 동일한 todayKST()라 무인자 호출부(app/events/page.tsx 등)는 그대로 호환된다.
 
 export async function getEventList(
-  areaCode = "32",
-  sigunguCode = "1",
+  areaCode = "51",
+  sigunguCode = "150",
   date = todayKST()
 ): Promise<EventApiItem[]> {
   const params: Record<string, string> = {
-    areaCode,
+    lDongRegnCd: areaCode,
     eventStartDate: date,
     numOfRows: "30",
     pageNo: "1",
   };
-  if (sigunguCode) params.sigunguCode = sigunguCode;
+  if (sigunguCode) params.lDongSignguCd = sigunguCode;
 
   try {
     const data = await fetchApi<TourismApiResponse>(KORSERVICE_URL, "searchFestival2", params);
@@ -187,9 +198,9 @@ export async function getEventList(
     if (items.length > 0) return items;
   } catch {}
 
-  // sigunguCode 제거 후 재시도 (강원도 전체에서 조회)
+  // lDongSignguCd 제거 후 재시도 (강원도 전체에서 조회)
   const fallbackParams: Record<string, string> = {
-    areaCode,
+    lDongRegnCd: areaCode,
     eventStartDate: date,
     numOfRows: "30",
     pageNo: "1",
