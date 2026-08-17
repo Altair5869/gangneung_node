@@ -105,6 +105,29 @@ export interface ParkingLot {
   distanceKm: number;
 }
 
+// 국립해양조사원 해수욕지수(GetFcstBeachApiServicev2, data.go.kr 15142484) 원본 항목 1건.
+// totalIndex/maxWvhgtM/avgWtemC는 API가 계산한 예보값을 가공·추측 없이 그대로 옮긴 값이다
+// (요구사항 문서 5절). period는 predcNoonSeCd 원본값 그대로("오전"/"오후"/"일") — 당일~+2일은
+// 오전/오후 두 건, 이후 4일은 "일" 단일 건으로 온다(2026-08-17 실호출로 확인, AC1/AC5). 이
+// 차이를 그대로 노출해야 UI가 항상 오전/오후 두 칸을 강제해 값이 비거나 중복 표시되는 걸 막는다.
+export interface BeachIndexEntry {
+  date: string; // predcYmd 원본, YYYY-MM-DD
+  period: "오전" | "오후" | "일";
+  totalIndex: string; // API 원본 등급 문자열(매우나쁨~매우좋음 등)
+  maxWvhgtM: number | null; // 최고파고(m), 파싱 실패 시 null
+  avgWtemC: number | null; // 평균수온(℃), 파싱 실패 시 null
+}
+
+// KHOA 해수욕지수 연동(2026-08-17): category === "attraction"이고 이름에 "해변"/"해수욕장"이
+// 포함된 명소에 이름 정규화 매칭(1:1)으로만 붙는다 — 반경 기반 좌표 매칭은 쓰지 않는다(AC8,
+// 강문/안목에 인접한 경포 데이터가 잘못 붙는 걸 막기 위함). announcedDate는 entries 중 가장
+// 이른 predcYmd — API 응답 자체엔 발표 "시각" 필드가 없음을 실호출로 확인했으므로(header/body/
+// items 어디에도 없음), 없는 시각을 지어내지 않고 날짜만 노출한다("실시간" 금지, AC4).
+export interface BeachIndex {
+  entries: BeachIndexEntry[];
+  announcedDate: string; // YYYY-MM-DD
+}
+
 export interface LifeSpot {
   id: string;
   name: string;
@@ -125,6 +148,12 @@ export interface LifeSpot {
   // 채운다. undefined = 매칭 시도 안 함(attraction이 아님), 빈 배열 = 매칭 시도했지만 반경
   // 내 주차장 없음/API 실패/키 미설정 — 둘 다 MapLifeSpotCard가 동일한 폴백 문구로 처리한다.
   parking?: ParkingLot[];
+  // 국립해양조사원 해수욕지수 연동(2026-08-17): category === "attraction"이고 이름에 "해변"/
+  // "해수욕장"이 포함된 명소일 때만 attachBeachIndex()가 채운다. undefined = 매칭 시도 안 함
+  // (비-해변 명소), null = 매칭 시도했지만 KHOA 관측 지점 없음(강문/안목) 또는 API 실패/키
+  // 미설정, 값 있음 = 매칭 성공(경포/주문진). parking 필드와 동일한 undefined/null/값 3단
+  // 원칙(위 주석 참고).
+  beachIndex?: BeachIndex | null;
 }
 
 export type RouteStop = WorkSpot | LifeSpot;

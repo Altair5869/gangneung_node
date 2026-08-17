@@ -1,6 +1,7 @@
 import KakaoMap from "@/components/map/KakaoMap";
 import { buildSpotCorpus, buildMapAttractionSpots } from "@/lib/spot-corpus";
 import { attachNearbyParking } from "@/lib/gn-traffic-api";
+import { attachBeachIndex } from "@/lib/khoa-beach-api";
 
 // 셀프 fetch가 cache:"no-store"였을 때와 동일하게 요청마다 렌더한다. 이걸 빼면 이 페이지는
 // buildSpotCorpus 내부 fetch의 revalidate:3600을 물려받아 1시간 ISR로 정적 프리렌더되는데,
@@ -25,7 +26,12 @@ export default async function MapPage() {
   // 강릉시 주차 연동(2026-08-16): category === "attraction"인 명소에만 반경 1km 내 주차장을
   // 매칭한다(요구사항 문서 3, 5절). 관광공사 API 호출과 별도 실패 경로이므로 attachNearbyParking
   // 자체가 Promise.all/빈 배열 폴백을 내부에서 처리한다 — 여기서 추가 try-catch는 불필요.
-  const lifeSpots = await attachNearbyParking(attractionSpots);
+  const spotsWithParking = await attachNearbyParking(attractionSpots);
+  // 국립해양조사원 해수욕지수 연동(2026-08-17): category === "attraction"이고 이름에 "해변"/
+  // "해수욕장"이 포함된 명소에만 이름 정규화 매칭으로 붙는다(요구사항 문서 4절). 주차 연동과
+  // 별도 실패 경로이므로 attachBeachIndex 자체가 폴백(null)을 내부에서 처리한다 — 여기서
+  // 추가 try-catch는 불필요(attachNearbyParking과 동일 원칙).
+  const lifeSpots = await attachBeachIndex(spotsWithParking);
   return (
     <div className="h-[calc(100vh-3.5rem)]">
       <KakaoMap spots={spots} lifeSpots={lifeSpots} />
