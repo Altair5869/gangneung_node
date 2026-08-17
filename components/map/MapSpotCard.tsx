@@ -2,6 +2,7 @@ import Link from "next/link";
 import { WorkSpot } from "@/types";
 import { cn, noiseLabel, congestionLabel, powerLabel } from "@/lib/utils";
 import { categoryLabel, noiseBadge, powerBadge } from "@/lib/spot-visuals";
+import MapDetailPanel from "./MapDetailPanel";
 
 // 혼잡도 dot은 지도 마커·필터 패널 범례(KakaoMap.tsx의 CONGESTION_COLOR)와 같은 고정 hex
 // 계열이어야 한다 — 마커가 카카오맵 캔버스 내부에 고정 hex로 렌더되므로, 여기서
@@ -21,30 +22,22 @@ export default function MapSpotCard({
   onClose: () => void;
 }) {
   return (
-    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-sm bg-background rounded-2xl shadow-xl border border-border z-10 overflow-hidden">
-      <div className="flex items-start justify-between p-4 pb-3">
-        <div>
-          <div className="flex items-center gap-2 mb-0.5">
-            <span className="text-xs text-foreground/60 font-medium">{categoryLabel[spot.category]}</span>
-            {spot.congestion && (
-              <span className="flex items-center gap-1 text-xs text-foreground/70">
-                <span className={cn("w-1.5 h-1.5 rounded-full", congestionDot[spot.congestion])} />
-                예상 {congestionLabel(spot.congestion)}
-              </span>
-            )}
-          </div>
-          <h3 className="font-bold text-foreground text-base">{spot.name}</h3>
-          <p className="text-xs text-foreground/60 mt-0.5">{spot.address}</p>
+    <MapDetailPanel
+      title={spot.name}
+      category={
+        <div className="flex items-center gap-2 mb-0.5">
+          <span className="text-xs text-foreground/60 font-medium">{categoryLabel[spot.category]}</span>
+          {spot.congestion && (
+            <span className="flex items-center gap-1 text-xs text-foreground/70">
+              <span className={cn("w-1.5 h-1.5 rounded-full", congestionDot[spot.congestion])} />
+              예상 {congestionLabel(spot.congestion)}
+            </span>
+          )}
         </div>
-        <button
-          onClick={onClose}
-          className="text-foreground/50 hover:text-foreground transition-colors ml-2 mt-0.5"
-          aria-label="닫기"
-        >
-          ✕
-        </button>
-      </div>
-
+      }
+      subtitle={<p className="text-xs text-foreground/60 mt-0.5">{spot.address}</p>}
+      onClose={onClose}
+    >
       <div className="flex items-center gap-2 px-4 pb-3 flex-wrap">
         <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", spot.noise !== "언급없음" ? noiseBadge[spot.noise] : "bg-muted text-foreground/60")}>
           {noiseLabel(spot.noise)}
@@ -76,6 +69,6 @@ export default function MapSpotCard({
           자세히 보기
         </Link>
       </div>
-    </div>
+    </MapDetailPanel>
   );
 }
