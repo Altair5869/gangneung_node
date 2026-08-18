@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { BeachIndexEntry, LifeSpot, OperatingInfo } from "@/types";
-import { cn } from "@/lib/utils";
+import { BeachIndexEntry, LifeSpot, OperatingInfo, WeatherForecast, WeatherSlot } from "@/types";
+import { cn, nowKstTimestamp } from "@/lib/utils";
 import { categoryLabel } from "@/lib/spot-visuals";
 import MapDetailPanel from "./MapDetailPanel";
 
@@ -93,6 +93,54 @@ function parkingRatioTone(availLots: number | null, totalLots: number | null): s
   return "text-bad";
 }
 
+// 기상청 단기예보 SKY/PTY → 사용자向 텍스트+이모지 매핑(기상청 공식 정의, 요구사항 문서 C절
+// 표 그대로 — 지어낸 값 아님). PTY!==0이면 강수형태 텍스트가 하늘상태를 대체한다(우선순위
+// 규칙, AC5). 초단기예보 전용 PTY 5/6/7은 이번 스코프(단기예보)에 나오지 않으므로 매핑하지
+// 않는다.
+const SKY_LABEL: Record<string, { text: string; emoji: string }> = {
+  "1": { text: "맑음", emoji: "☀️" },
+  "3": { text: "구름많음", emoji: "⛅" },
+  "4": { text: "흐림", emoji: "☁️" },
+};
+
+const PTY_LABEL: Record<string, { text: string; emoji: string }> = {
+  "1": { text: "비", emoji: "🌧️" },
+  "2": { text: "비/눈", emoji: "🌨️" },
+  "3": { text: "눈", emoji: "❄️" },
+  "4": { text: "소나기", emoji: "🌦️" },
+};
+
+// PTY !== "0"이면 PTY 우선, PTY === "0"이면 SKY(요구사항 문서 C절 우선순위 규칙, AC5). 매핑에
+// 없는 미지 코드가 오면(방어) null — "정보 없음"으로 폴백하고 지어낸 텍스트를 보이지 않는다.
+function weatherConditionLabel(slot: WeatherSlot): { text: string; emoji: string } | null {
+  if (slot.pty && slot.pty !== "0") return PTY_LABEL[slot.pty] ?? null;
+  if (slot.sky) return SKY_LABEL[slot.sky] ?? null;
+  return null;
+}
+
+// 현재 시각 이후 가장 가까운 슬롯부터 최소 4개를 보여준다(요구사항 문서 D절 "표시 슬롯 수").
+// slots는 이미 시간순 정렬돼 있다(lib/tourism-api.ts). 문자열 비교만으로 "지금 이후"를 골라낼
+// 수 있는 이유: fcstDate(8자리)+fcstTime(4자리)와 nowKstTimestamp()(12자리)가 동일 포맷이다.
+// 모든 슬롯이 이미 과거면(발표 주기 끝자락 등 방어적 케이스) 마지막 슬롯이라도 보여준다.
+function selectUpcomingSlots(slots: WeatherSlot[], count = 4): WeatherSlot[] {
+  const nowKey = nowKstTimestamp();
+  const startIdx = slots.findIndex((s) => `${s.fcstDate}${s.fcstTime}` >= nowKey);
+  if (startIdx === -1) return slots.slice(-count);
+  return slots.slice(startIdx, startIdx + count);
+}
+
+// "1500" → "15시". 슬롯 날짜가 발표 기준일과 다르면(자정을 넘는 슬롯) "M/D H시"로 날짜를 함께
+// 표기해 다음날 새벽 슬롯이 당일처럼 보이는 걸 막는다.
+function formatSlotTimeLabel(slot: WeatherSlot, baseDate: string): string {
+  const hour = parseInt(slot.fcstTime.slice(0, 2), 10);
+  if (slot.fcstDate !== baseDate) {
+    const m = parseInt(slot.fcstDate.slice(4, 6), 10);
+    const d = parseInt(slot.fcstDate.slice(6, 8), 10);
+    return `${m}/${d} ${hour}시`;
+  }
+  return `${hour}시`;
+}
+
 // WorkSpot 전용 MapSpotCard(wifi/power/noise/openHours 배지, /spots/[id] 링크)를 LifeSpot에
 // 그대로 못 쓴다 — LifeSpot 타입엔 이 필드들이 아예 없고, /attraction/[id] 같은 상세 페이지도
 // 존재하지 않는다(요구사항 문서 3번, AC5). 그래서 이름/카테고리/주소/설명만 보여주는 경량 카드를
@@ -100,9 +148,11 @@ function parkingRatioTone(availLots: number | null, totalLots: number | null): s
 // 게 낫다.
 export default function MapLifeSpotCard({
   spot,
+  weather,
   onClose,
 }: {
   spot: LifeSpot;
+  weather: WeatherForecast | null;
   onClose: () => void;
 }) {
   const [operatingInfo, setOperatingInfo] = useState<OperatingInfo | null>(null);
@@ -200,6 +250,55 @@ export default function MapLifeSpotCard({
           )}
         </div>
       )}
+
+      {/* 기상청 단기예보 연동(2026-08-18): weather는 app/map/page.tsx에서 페이지 레벨로 1회
+          호출한 결과를 KakaoMap을 거쳐 그대로 prop threading받은 값이라(요구사항 문서 최상단
+          요약) category 제한 없이 모든 LifeSpot 카드에 렌더링한다 — 운영정보/주차/해수욕지수와
+          달리 attraction 전용 매칭이 필요 없는 데이터다. null이면 API 실패/키 미설정으로 보고
+          정직한 폴백 문구를 보여준다(AC7). "실시간" 대신 baseTime을 "OO시 발표 기준"으로
+          표기한다(AC8, 해수욕지수 패턴 재사용). WAV(파고)는 여기서 절대 쓰지 않는다 — 해수욕지수
+          섹션의 maxWvhgtM과 산출 방식이 달라 같은 화면에 두 파고 숫자가 뜨는 걸 막기 위한
+          의도적 설계 결정이다(AC6). */}
+      <div className="px-4 pb-3">
+        <p className="text-xs font-semibold text-foreground/60 mb-1.5">날씨</p>
+        {weather && weather.slots.length > 0 ? (
+          <>
+            <ul className="space-y-1.5">
+              {selectUpcomingSlots(weather.slots).map((slot, idx) => {
+                const condition = weatherConditionLabel(slot);
+                return (
+                  <li
+                    key={`${slot.fcstDate}_${slot.fcstTime}`}
+                    className="flex items-center justify-between text-xs bg-muted rounded-lg px-2.5 py-2"
+                  >
+                    <span className="text-foreground/80 whitespace-nowrap">
+                      {idx === 0 ? "지금" : formatSlotTimeLabel(slot, weather.baseDate)}
+                    </span>
+                    <span className="text-foreground/60 text-right">
+                      {condition ? (
+                        <span>
+                          {condition.emoji} {condition.text}
+                        </span>
+                      ) : (
+                        <span>정보 없음</span>
+                      )}
+                      {slot.tmpC !== null && <span className="ml-1.5">{slot.tmpC}℃</span>}
+                      {slot.pop !== null && (
+                        <span className="ml-1.5 text-foreground/40">강수확률 {slot.pop}%</span>
+                      )}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+            <p className="text-[11px] text-foreground/40 pt-1">
+              기상청 단기예보 ({parseInt(weather.baseTime.slice(0, 2), 10)}시 발표 기준)
+            </p>
+          </>
+        ) : (
+          <p className="text-xs text-foreground/50">날씨 정보가 연동되지 않았어요</p>
+        )}
+      </div>
 
       {/* 강릉시 주차 연동(2026-08-16): category "attraction"에서만 렌더링(요구사항 문서 5절).
           spot.parking이 undefined(비-attraction)면 아예 안 그리고, attraction인데 빈 배열(매칭

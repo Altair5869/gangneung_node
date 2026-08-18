@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useEffect } from "react";
-import { WorkSpot, LifeSpot } from "@/types";
+import { WorkSpot, LifeSpot, WeatherForecast } from "@/types";
 import { cn } from "@/lib/utils";
 import MapSpotCard from "./MapSpotCard";
 import MapLifeSpotCard from "./MapLifeSpotCard";
@@ -32,7 +32,19 @@ function isVisible(spot: WorkSpot, filters: Filters): boolean {
   return true;
 }
 
-export default function KakaoMap({ spots, lifeSpots = [] }: { spots: WorkSpot[]; lifeSpots?: LifeSpot[] }) {
+// weather: 기상청 단기예보 페이지 레벨 단일 호출 결과(app/map/page.tsx에서 1회만 fetch,
+// AC3). 명소마다 다른 값이 아니라 모든 LifeSpot 카드가 동일 객체를 공유하므로 LifeSpot 필드로
+// 복제해 붙이지 않고 이 prop 하나를 MapLifeSpotCard까지 그대로 threading한다(요구사항 문서
+// 최상단 요약). 실패/키 미설정 시 null — 필수 prop이지만 값 자체는 null일 수 있다.
+export default function KakaoMap({
+  spots,
+  lifeSpots = [],
+  weather,
+}: {
+  spots: WorkSpot[];
+  lifeSpots?: LifeSpot[];
+  weather: WeatherForecast | null;
+}) {
   const mapRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mapObj = useRef<any>(null);
@@ -295,7 +307,7 @@ export default function KakaoMap({ spots, lifeSpots = [] }: { spots: WorkSpot[];
         <MapSpotCard spot={selectedSpot} onClose={() => setSelectedSpot(null)} />
       )}
       {selectedLifeSpot && (
-        <MapLifeSpotCard spot={selectedLifeSpot} onClose={() => setSelectedLifeSpot(null)} />
+        <MapLifeSpotCard spot={selectedLifeSpot} weather={weather} onClose={() => setSelectedLifeSpot(null)} />
       )}
     </div>
   );

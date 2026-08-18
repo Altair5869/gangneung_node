@@ -128,6 +128,32 @@ export interface BeachIndex {
   announcedDate: string; // YYYY-MM-DD
 }
 
+// 기상청 단기예보(getVilageFcst) 단일 슬롯(fcstDate+fcstTime당 1개, 요구사항 문서 A절 pivot
+// 결과). TMP/SKY/PTY/POP/PCP/WSD/VEC 원본 값을 가공 없이 옮기되 숫자 파싱 실패 시 null로
+// 정규화한다("없는 값 지어내지 않기" 원칙, F절). WAV(파고)는 이 타입에 아예 포함하지 않는다 —
+// 해수욕지수 섹션의 BeachIndexEntry.maxWvhgtM과 산출 방식이 달라 같은 화면에 두 파고 숫자가
+// 동시에 뜨면 혼란을 준다는 게 명시적 설계 결정이다(요구사항 문서 D절, AC6).
+export interface WeatherSlot {
+  fcstDate: string; // YYYYMMDD
+  fcstTime: string; // HHMM
+  tmpC: number | null; // 기온(℃)
+  sky: "1" | "3" | "4" | null; // 하늘상태 코드 원본(맑음/구름많음/흐림). PTY!==0이면 SKY보다 PTY 우선 표시(C절)
+  pty: "0" | "1" | "2" | "3" | "4" | null; // 강수형태 코드 원본(없음/비/비,눈/눈/소나기)
+  pop: number | null; // 강수확률(%)
+  pcp: string | null; // 강수량 원문("강수없음" 등 숫자화 안 되는 문자열이 옴 — 그대로 보존)
+  wsd: number | null; // 풍속(m/s)
+  vec: number | null; // 풍향(deg)
+}
+
+// getVillageForecast(nx, ny) 1회 호출 결과 전체(요구사항 문서 최상단 요약 — 페이지 레벨
+// 단일 호출, LifeSpot 필드로 복제하지 않고 KakaoMap → MapLifeSpotCard로 그대로 prop threading).
+// baseDate/baseTime은 API에 실제로 요청한 발표 시각("OO시 발표 기준" 표기에 사용, AC4/AC8).
+export interface WeatherForecast {
+  baseDate: string;
+  baseTime: string;
+  slots: WeatherSlot[];
+}
+
 export interface LifeSpot {
   id: string;
   name: string;

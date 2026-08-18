@@ -1,8 +1,12 @@
-import { TourismApiItem, EventApiItem } from "@/types";
-import { todayKST } from "@/lib/utils";
+import { TourismApiItem, EventApiItem, WeatherForecast, WeatherSlot } from "@/types";
+import { todayKST, computeWeatherBaseDateTime } from "@/lib/utils";
 
 const KORSERVICE_URL = "https://apis.data.go.kr/B551011/KorService2";
 const BARRIER_FREE_URL = "https://apis.data.go.kr/B551011/KorWithService2";
+// 기상청 단기예보(VilageFcstInfoService_2.0) — KORSERVICE_URL/BARRIER_FREE_URL과 발급기관·베이스
+// URL이 다르다(공사가 아니라 기상청). TOURISM_API_KEY는 그대로 재사용한다(신규 키 불필요,
+// 요구사항 문서 확인됨).
+const WEATHER_URL = "https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0";
 const SERVICE_KEY = process.env.TOURISM_API_KEY ?? "";
 
 // T 기본값은 TourismApiItem — 기존 호출부(fetchApi<TourismApiResponse>(...))는 전부 타입 인자를
@@ -24,6 +28,11 @@ interface TourismApiResponse<T = TourismApiItem> {
 // (요구사항 문서 8절).
 const DEFAULT_REVALIDATE_SECONDS = 3600;
 const DAY_REVALIDATE_SECONDS = 86400;
+// 발표 주기(3시간=10800초)의 절반 이하로 캐시한다(요구사항 문서 E절) — DAY_REVALIDATE_SECONDS를
+// 그대로 쓰면 하루 8번의 발표 갱신 중 최대 8번을 놓칠 수 있어 부적절하다. 900~5400초 범위 안에서
+// 조정 가능한 하드 제약은 아니라고 문서에 명시돼 있으나, 30분(1800초)이면 3시간 주기 안에 6번
+// 재검증 기회가 생겨 과도한 API 호출 없이 오래된 예보를 오래 붙들지 않는다.
+const WEATHER_REVALIDATE_SECONDS = 1800;
 
 async function fetchApi<T>(
   baseUrl: string,
@@ -329,4 +338,132 @@ export async function getCongestionMap(areaCd = "32", signguCd = "1"): Promise<M
     // 데이터 미제공 시 빈 맵 반환 → estimateCongestion으로 fallback
   }
   return map;
+}
+
+// ── 기상청 단기예보 (getVilageFcst) ────────────────────────
+
+interface WeatherApiItem {
+  baseDate: string;
+  baseTime: string;
+  category: string; // TMP/SKY/PTY/POP/PCP/WSD/VEC/WAV 등
+  fcstDate: string;
+  fcstTime: string;
+  fcstValue: string;
+  nx: number;
+  ny: number;
+  [key: string]: unknown;
+}
+
+function parseWeatherNumber(v: unknown): number | null {
+  const n = parseFloat(String(v));
+  return Number.isFinite(n) ? n : null;
+}
+
+const VALID_SKY = new Set(["1", "3", "4"]);
+const VALID_PTY = new Set(["0", "1", "2", "3", "4"]);
+
+// getVilageFcst: fetchApi()가 항상 붙이는 _type=json은 이 엔드포인트에서 무시된다 — 실호출로
+// 확인했다(AC1, 2026-08-18). dataType=JSON을 명시적으로 넘기지 않으면 XML이 오고, fetchApi의
+// res.json()이 그 XML 텍스트에 대해 SyntaxError를 던진다(실측). 그래서 params에
+// dataType: "JSON"을 명시적으로 추가해 fetchApi를 그대로 재사용한다 — 별도 fetch 로직은
+// 필요 없었다. MobileOS/MobileApp 파라미터는 있어도 없어도 응답이 동일함을 실호출로 확인했다
+// (요구/거부 아님) — fetchApi가 항상 붙이는 기존 값을 그대로 둬도 무해하다.
+//
+// 에러 처리는 getDetailIntro(예외를 던지고 호출부가 try/catch)가 아니라 attachBeachIndex/
+// attachNearbyParking 관례를 따른다 — 이 함수 자체가 실패를 흡수하고 null을 반환한다(AC7).
+// app/map/page.tsx(서버 컴포넌트)에서 별도 try/catch 없이 직접 호출한다.
+export async function getVillageForecast(nx: number, ny: number): Promise<WeatherForecast | null> {
+  if (!SERVICE_KEY) return null;
+
+  const { baseDate, baseTime } = computeWeatherBaseDateTime();
+
+  try {
+    const data = await fetchApi<TourismApiResponse<WeatherApiItem>>(
+      WEATHER_URL,
+      "getVilageFcst",
+      {
+        dataType: "JSON",
+        base_date: baseDate,
+        base_time: baseTime,
+        nx: String(nx),
+        ny: String(ny),
+        numOfRows: "1000",
+        pageNo: "1",
+      },
+      WEATHER_REVALIDATE_SECONDS
+    );
+    const items = extractItems<WeatherApiItem>(data, "getVilageFcst");
+    if (items.length === 0) return null;
+
+    // TMP/SKY/PTY/POP/PCP/WSD/VEC/WAV가 각각 별도 row(category 필드)로 오므로
+    // fcstDate_fcstTime 키로 그룹핑해 슬롯 객체로 pivot한다(요구사항 문서 A절, 신규 로직).
+    // WAV(파고)는 의도적으로 pivot 대상에서 제외한다 — 해수욕지수 섹션과의 중복 회피 결정
+    // (요구사항 문서 D절, AC6). 알 수 없는 category도 마찬가지로 무시한다.
+    type SlotAccumulator = {
+      fcstDate: string;
+      fcstTime: string;
+      tmpC: number | null;
+      sky: WeatherSlot["sky"];
+      pty: WeatherSlot["pty"];
+      pop: number | null;
+      pcp: string | null;
+      wsd: number | null;
+      vec: number | null;
+    };
+    const slotMap = new Map<string, SlotAccumulator>();
+
+    for (const item of items) {
+      const key = `${item.fcstDate}_${item.fcstTime}`;
+      const slot =
+        slotMap.get(key) ??
+        ({
+          fcstDate: item.fcstDate,
+          fcstTime: item.fcstTime,
+          tmpC: null,
+          sky: null,
+          pty: null,
+          pop: null,
+          pcp: null,
+          wsd: null,
+          vec: null,
+        } satisfies SlotAccumulator);
+
+      switch (item.category) {
+        case "TMP":
+          slot.tmpC = parseWeatherNumber(item.fcstValue);
+          break;
+        case "SKY":
+          slot.sky = VALID_SKY.has(item.fcstValue) ? (item.fcstValue as WeatherSlot["sky"]) : null;
+          break;
+        case "PTY":
+          slot.pty = VALID_PTY.has(item.fcstValue) ? (item.fcstValue as WeatherSlot["pty"]) : null;
+          break;
+        case "POP":
+          slot.pop = parseWeatherNumber(item.fcstValue);
+          break;
+        case "PCP":
+          slot.pcp = item.fcstValue ?? null;
+          break;
+        case "WSD":
+          slot.wsd = parseWeatherNumber(item.fcstValue);
+          break;
+        case "VEC":
+          slot.vec = parseWeatherNumber(item.fcstValue);
+          break;
+        // WAV(파고)와 그 외 미지 category는 의도적으로 무시(AC6).
+        default:
+          break;
+      }
+      slotMap.set(key, slot);
+    }
+
+    const slots: WeatherSlot[] = Array.from(slotMap.values()).sort((a, b) =>
+      `${a.fcstDate}${a.fcstTime}`.localeCompare(`${b.fcstDate}${b.fcstTime}`)
+    );
+
+    return { baseDate, baseTime, slots };
+  } catch (e) {
+    console.error("[tourism-api] getVilageFcst failed:", e);
+    return null;
+  }
 }

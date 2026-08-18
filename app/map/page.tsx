@@ -2,6 +2,12 @@ import KakaoMap from "@/components/map/KakaoMap";
 import { buildSpotCorpus, buildMapAttractionSpots } from "@/lib/spot-corpus";
 import { attachNearbyParking } from "@/lib/gn-traffic-api";
 import { attachBeachIndex } from "@/lib/khoa-beach-api";
+import { getVillageForecast } from "@/lib/tourism-api";
+
+// 기상청 단기예보 격자 좌표 — 이전 라운드(해수욕지수 실호출 조사)에서 nx=92, ny=131 단일
+// 격자(5km 해상도)로 강릉 시내 대부분을 커버함을 확인했다(요구사항 문서 최상단 요약).
+const WEATHER_GRID_NX = 92;
+const WEATHER_GRID_NY = 131;
 
 // 셀프 fetch가 cache:"no-store"였을 때와 동일하게 요청마다 렌더한다. 이걸 빼면 이 페이지는
 // buildSpotCorpus 내부 fetch의 revalidate:3600을 물려받아 1시간 ISR로 정적 프리렌더되는데,
@@ -32,9 +38,16 @@ export default async function MapPage() {
   // 별도 실패 경로이므로 attachBeachIndex 자체가 폴백(null)을 내부에서 처리한다 — 여기서
   // 추가 try-catch는 불필요(attachNearbyParking과 동일 원칙).
   const lifeSpots = await attachBeachIndex(spotsWithParking);
+  // 기상청 단기예보 연동(2026-08-18): 명소마다 값이 다른 데이터가 아니라 격자 해상도 안에서
+  // 강릉 관내 명소 대부분이 공유하는 사실상 상수에 가까운 데이터라, attachBeachIndex/
+  // attachNearbyParking처럼 LifeSpot마다 매칭해 붙이지 않고 페이지 레벨에서 1회만 호출해
+  // KakaoMap → MapLifeSpotCard까지 별도 prop으로 그대로 threading한다(요구사항 문서 최상단
+  // 요약, AC3). getVillageForecast 자체가 실패를 내부에서 흡수해 null을 반환하므로(AC7)
+  // 여기서 추가 try-catch는 불필요 — attachBeachIndex/attachNearbyParking과 동일 원칙.
+  const weather = await getVillageForecast(WEATHER_GRID_NX, WEATHER_GRID_NY);
   return (
     <div className="h-[calc(100vh-3.5rem)]">
-      <KakaoMap spots={spots} lifeSpots={lifeSpots} />
+      <KakaoMap spots={spots} lifeSpots={lifeSpots} weather={weather} />
     </div>
   );
 }

@@ -33,6 +33,48 @@ export function addDaysKST(days: number): string {
   return `${y}${m}${d}`;
 }
 
+// 기상청 단기예보(getVilageFcst) 발표 시각표([23,20,17,14,11,08,05,02])를 기준으로 "가장 최근
+// 지난 발표 시각"을 역산한다. API 반영까지 약 10분 지연이 있다고 알려져 있어(요구사항 문서
+// B절), todayKST()와 동일한 KST 오프셋 트릭에 10분 차감을 더해 적용한 뒤 getUTCHours()로
+// KST "시" 값을 읽는다. hour가 0 또는 1이면(자정 경계, 아직 오늘 02시 발표가 반영 안 됨)
+// 전날 23시 발표로 넘어간다. now 인자는 기본값 없이 테스트 시 고정 시각을 주입할 수 있게
+// 열어둔다(AC2 경계 케이스 3종 검증용, scripts/test-weather-basetime.mjs).
+const WEATHER_ANNOUNCE_HOURS = [23, 20, 17, 14, 11, 8, 5, 2];
+
+export function computeWeatherBaseDateTime(now: Date = new Date()): { baseDate: string; baseTime: string } {
+  const effective = new Date(now.getTime() + 9 * 60 * 60 * 1000 - 10 * 60 * 1000);
+  const hour = effective.getUTCHours();
+  const y = effective.getUTCFullYear();
+  const m = String(effective.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(effective.getUTCDate()).padStart(2, "0");
+
+  const found = WEATHER_ANNOUNCE_HOURS.find((t) => hour >= t);
+  if (found !== undefined) {
+    return { baseDate: `${y}${m}${d}`, baseTime: `${String(found).padStart(2, "0")}00` };
+  }
+
+  // hour가 0 또는 1인 자정 경계 — 오늘 02시 발표가 아직 반영되지 않았으므로 전날 23시 발표를 쓴다.
+  const prev = new Date(effective.getTime() - 24 * 60 * 60 * 1000);
+  const py = prev.getUTCFullYear();
+  const pm = String(prev.getUTCMonth() + 1).padStart(2, "0");
+  const pd = String(prev.getUTCDate()).padStart(2, "0");
+  return { baseDate: `${py}${pm}${pd}`, baseTime: "2300" };
+}
+
+// KST 기준 현재 시각을 "YYYYMMDDHHmm"(12자리) 형태로 반환한다. 날씨 슬롯(fcstDate+fcstTime,
+// 마찬가지로 8자리+4자리=12자리) 중 "지금 이후" 슬롯을 문자열 비교만으로 골라내는 데 쓴다
+// (MapLifeSpotCard.tsx). todayKST()와 같은 UTC+9 오프셋 트릭이지만 분 단위까지 필요해 별도로 둔다.
+export function nowKstTimestamp(): string {
+  const now = new Date();
+  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  const y = kst.getUTCFullYear();
+  const m = String(kst.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(kst.getUTCDate()).padStart(2, "0");
+  const hh = String(kst.getUTCHours()).padStart(2, "0");
+  const mm = String(kst.getUTCMinutes()).padStart(2, "0");
+  return `${y}${m}${d}${hh}${mm}`;
+}
+
 // YYYYMMDD 문자열을 "YYYY년 M월 D일" 형태로 표시한다. 원래 app/events/page.tsx에만 있던 로컬
 // formatDate였으나, 이번 라운드에서 같은 포맷이 필요한 화면이 늘어나(ai-curator 결과 카드,
 // planner 저장 플랜 카드) 공유 위치로 옮겼다(R1, 옵션 B 후속, 2026-08-11) — 로직 복제 금지,
