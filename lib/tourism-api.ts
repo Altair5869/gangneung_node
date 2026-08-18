@@ -5,10 +5,13 @@ const KORSERVICE_URL = "https://apis.data.go.kr/B551011/KorService2";
 const BARRIER_FREE_URL = "https://apis.data.go.kr/B551011/KorWithService2";
 const SERVICE_KEY = process.env.TOURISM_API_KEY ?? "";
 
-interface TourismApiResponse {
+// T 기본값은 TourismApiItem — 기존 호출부(fetchApi<TourismApiResponse>(...))는 전부 타입 인자를
+// 명시하지 않으므로 이 기본값을 그대로 물려받아 변경 없이 동작한다. detailIntro2/detailInfo2처럼
+// item 스키마가 다른 응답(아래 DetailIntroItem/DetailInfoItem)을 받을 때만 T를 명시적으로 지정한다.
+interface TourismApiResponse<T = TourismApiItem> {
   response: {
     body: {
-      items: { item: TourismApiItem[] } | string;
+      items: { item: T[] } | string;
       totalCount: number;
       numOfRows: number;
       pageNo: number;
@@ -16,7 +19,18 @@ interface TourismApiResponse {
   };
 }
 
-async function fetchApi<T>(baseUrl: string, endpoint: string, params: Record<string, string>): Promise<T> {
+// 전역 기본값(1시간)은 목록/이벤트 API가 공유한다. 하루 단위로 늦춰도 되는 호출(운영시간/입장료 등
+// 정적에 가까운 정보)만 fetchApi 4번째 인자로 override한다 — 기본값 자체는 건드리지 않는다
+// (요구사항 문서 8절).
+const DEFAULT_REVALIDATE_SECONDS = 3600;
+const DAY_REVALIDATE_SECONDS = 86400;
+
+async function fetchApi<T>(
+  baseUrl: string,
+  endpoint: string,
+  params: Record<string, string>,
+  revalidateSeconds: number = DEFAULT_REVALIDATE_SECONDS
+): Promise<T> {
   const url = new URL(`${baseUrl}/${endpoint}`);
   url.searchParams.set("serviceKey", SERVICE_KEY);
   url.searchParams.set("MobileOS", "ETC");
@@ -24,7 +38,7 @@ async function fetchApi<T>(baseUrl: string, endpoint: string, params: Record<str
   url.searchParams.set("_type", "json");
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
 
-  const res = await fetch(url.toString(), { next: { revalidate: 3600 } });
+  const res = await fetch(url.toString(), { next: { revalidate: revalidateSeconds } });
   if (!res.ok) throw new Error(`Tourism API error: ${res.status}`);
   return res.json() as Promise<T>;
 }
@@ -34,8 +48,8 @@ async function fetchApi<T>(baseUrl: string, endpoint: string, params: Record<str
 // TypeError가 났고, 호출부의 Promise.allSettled/try-catch가 이를 "그냥 결과 없음"과 똑같이 빈
 // 배열로 삼켜 버려서 한도 초과를 알아챌 방법이 아예 없었다(코퍼스가 조용히 VERIFIED_SPOTS 24곳으로
 // 축소됨). 폴백 동작(빈 배열)은 그대로 두되, 정상 0건과 구분되는 로그를 남긴다(2026-08-05).
-function extractItems(data: TourismApiResponse, endpoint = "unknown"): TourismApiItem[] {
-  const body = (data as TourismApiResponse | undefined)?.response?.body;
+function extractItems<T = TourismApiItem>(data: TourismApiResponse<T>, endpoint = "unknown"): T[] {
+  const body = (data as TourismApiResponse<T> | undefined)?.response?.body;
   if (!body) {
     console.error(
       `[tourism-api] unexpected envelope (endpoint=${endpoint}): ${JSON.stringify(data ?? null).slice(0, 300)}`
@@ -80,6 +94,57 @@ export async function getDetailCommon(contentId: string) {
   });
   const items = extractItems(data, "detailCommon2");
   return items[0] ?? null;
+}
+
+// detailIntro2 응답 아이템. contentTypeId=12(관광지)와 14(문화시설)가 서로 다른 필드명을 쓴다
+// (usetime/usetimeculture 등) — 정규화는 호출부(lib/operating-info.ts)가 담당하고 여기서는
+// 원본 필드를 그대로 옮긴다. opendate/expguide는 실호출로 항상 빈 값임을 확인했지만(요구사항
+// 문서 1-4절) 스키마 자체에는 존재하므로 타입에 남겨둔다.
+export interface DetailIntroItem {
+  contentid?: string;
+  usetime?: string;        // 이용시간 (contentTypeId=12)
+  restdate?: string;        // 쉬는날 (contentTypeId=12)
+  usetimeculture?: string;  // 이용시간 (contentTypeId=14)
+  restdateculture?: string; // 쉬는날 (contentTypeId=14)
+  usefee?: string;          // 이용요금 (contentTypeId=14 응답에만 포함, 12는 스키마에 없음)
+  opendate?: string;
+  expguide?: string;
+  [key: string]: unknown;
+}
+
+// detailInfo2 응답 아이템. "입장료" 하나만 보려고 불러도 화장실 등 다른 항목이 같이 온다
+// (요구사항 문서 1-3절) — infoname/infotext 쌍의 반복 리스트를 그대로 반환한다.
+export interface DetailInfoItem {
+  infoname?: string;
+  infotext?: string;
+  [key: string]: unknown;
+}
+
+// detailIntro2: contentId + contentTypeId 둘 다 필수(실호출로 확인, contentTypeId 생략 시
+// NO_MANDATORY_REQUEST_PARAMETERS_ERROR1 — 요구사항 문서 1-1절). getDetailCommon과 달리
+// 인자 2개를 받는다. 운영시간/입장료는 정적에 가까운 정보라 하루 단위로 캐시한다(8절).
+export async function getDetailIntro(contentId: string, contentTypeId: string): Promise<DetailIntroItem | null> {
+  const data = await fetchApi<TourismApiResponse<DetailIntroItem>>(
+    KORSERVICE_URL,
+    "detailIntro2",
+    { contentId, contentTypeId },
+    DAY_REVALIDATE_SECONDS
+  );
+  const items = extractItems<DetailIntroItem>(data, "detailIntro2");
+  return items[0] ?? null;
+}
+
+// detailInfo2: contentTypeId=12(관광지)의 입장료 확보 전용(요구사항 문서 1-3절). detailIntro2와
+// 별도 엔드포인트다 — 항목 여러 개(화장실 등)가 섞여 오므로 반복 리스트를 그대로 반환하고,
+// 호출부(lib/operating-info.ts)가 infoname === "입장료" 항목만 골라 쓴다.
+export async function getDetailInfo(contentId: string, contentTypeId: string): Promise<DetailInfoItem[]> {
+  const data = await fetchApi<TourismApiResponse<DetailInfoItem>>(
+    KORSERVICE_URL,
+    "detailInfo2",
+    { contentId, contentTypeId },
+    DAY_REVALIDATE_SECONDS
+  );
+  return extractItems<DetailInfoItem>(data, "detailInfo2");
 }
 
 // ── 위치기반 관광정보 ──────────────────────────────────────

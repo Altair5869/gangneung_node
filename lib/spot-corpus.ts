@@ -197,7 +197,7 @@ export async function buildLifeSpotCorpus(): Promise<LifeSpot[]> {
 
   const attractions =
     attractionResult.status === "fulfilled"
-      ? attractionResult.value.filter(hasValidCoords).map(mapTourismToLifeSpot)
+      ? attractionResult.value.filter(hasValidCoords).map((item) => mapTourismToLifeSpot(item))
       : [];
 
   // R1(2026-08-13): 관광공사 단독 조회 대신 buildFoodSpots()(관광공사+카카오 FD6 병합, dedupe
@@ -337,17 +337,24 @@ export async function buildMapAttractionSpots(workSpotContentIds: Set<string>): 
     console.error("[spot-corpus] map cultural facility (14) fetch failed:", culturalResult.reason);
   }
 
-  const rawItems = [
-    ...(attractionResult.status === "fulfilled" ? attractionResult.value : []),
-    ...(culturalResult.status === "fulfilled" ? culturalResult.value : []),
+  // contentTypeId(12/14)는 응답 파싱이 아니라 "어떤 배치로 요청했는지" 기준으로 명시적으로
+  // 태깅한다(요구사항 문서 4절, buildNearbyLifeSpotCorpus 236행 주석과 동일 원칙 — TourismApiItem에는
+  // contenttypeid 필드 자체가 없다). 두 배치를 합치기 전에 각 아이템에 태그를 붙여 둔다.
+  const taggedItems: { item: TourismApiItem; contentTypeId: "12" | "14" }[] = [
+    ...(attractionResult.status === "fulfilled"
+      ? attractionResult.value.map((item) => ({ item, contentTypeId: "12" as const }))
+      : []),
+    ...(culturalResult.status === "fulfilled"
+      ? culturalResult.value.map((item) => ({ item, contentTypeId: "14" as const }))
+      : []),
   ];
 
   const byId = new Map<string, LifeSpot>();
-  rawItems
-    .filter(hasValidCoords)
-    .filter((item) => !workSpotContentIds.has(item.contentid))
-    .forEach((item) => {
-      const spot = mapTourismToLifeSpot(item);
+  taggedItems
+    .filter(({ item }) => hasValidCoords(item))
+    .filter(({ item }) => !workSpotContentIds.has(item.contentid))
+    .forEach(({ item, contentTypeId }) => {
+      const spot = mapTourismToLifeSpot(item, contentTypeId);
       if (!byId.has(spot.id)) byId.set(spot.id, spot);
     });
 

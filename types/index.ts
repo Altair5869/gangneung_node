@@ -154,6 +154,26 @@ export interface LifeSpot {
   // 미설정, 값 있음 = 매칭 성공(경포/주문진). parking 필드와 동일한 undefined/null/값 3단
   // 원칙(위 주석 참고).
   beachIndex?: BeachIndex | null;
+  // 운영시간/입장료 연동(2026-08-18): category === "attraction"일 때만 buildMapAttractionSpots가
+  // 배치(관광지 12 / 문화시설 14)별로 명시적으로 태깅한다 — API 응답에는 contenttypeid 필드
+  // 자체가 없어 파싱으로는 구분할 수 없다(요구사항 문서 4절, buildNearbyLifeSpotCorpus와
+  // 동일 원칙). /api/attraction-detail 호출 시 어떤 엔드포인트 조합을 쓸지 이 값으로 정한다.
+  contentTypeId?: "12" | "14";
+  // WorkSpot.tourismContentId와 동일한 목적 — LifeSpot.id가 `attraction-${contentid}` 형태라
+  // 문자열 파싱으로도 뽑을 수 있지만, id 포맷이 바뀌면 깨지므로 원본 contentId를 명시적으로
+  // 함께 보존한다(요구사항 문서 4-③).
+  tourismContentId?: string;
+}
+
+// GET /api/attraction-detail 응답에 담기는 명소 운영 정보(2026-08-18 신규). hours/closedDays는
+// contentTypeId=12일 때 usetime/restdate, 14일 때 usetimeculture/restdateculture 원본이고,
+// fee는 14는 usefee, 12는 detailInfo2의 infoname==="입장료" 항목이다(요구사항 문서 6절).
+// 빈 문자열("")은 null로 정규화되고, "연중무휴"/"상시 개방" 같은 실제 원문은 가공 없이 그대로
+// 담긴다 — LifeSpot 타입에 영구 저장하지 않고 카드 클릭마다 조회해 로컬 상태로만 존재한다.
+export interface OperatingInfo {
+  hours: string | null;
+  closedDays: string | null;
+  fee: string | null;
 }
 
 export type RouteStop = WorkSpot | LifeSpot;

@@ -1,7 +1,16 @@
-import { BeachIndexEntry, LifeSpot } from "@/types";
+import { useEffect, useState } from "react";
+import { BeachIndexEntry, LifeSpot, OperatingInfo } from "@/types";
 import { cn } from "@/lib/utils";
 import { categoryLabel } from "@/lib/spot-visuals";
 import MapDetailPanel from "./MapDetailPanel";
+
+type OperatingInfoStatus = "loading" | "success" | "failed";
+
+const OPERATING_INFO_ROWS: { key: keyof OperatingInfo; label: string }[] = [
+  { key: "hours", label: "운영시간" },
+  { key: "closedDays", label: "휴무일" },
+  { key: "fee", label: "입장료" },
+];
 
 // "2026-08-17" → "8월 17일". announcedDate·각 날짜 그룹 라벨에 공통으로 쓴다(AC4, "실시간"
 // 대신 발표 기준 날짜를 명시).
@@ -96,6 +105,53 @@ export default function MapLifeSpotCard({
   spot: LifeSpot;
   onClose: () => void;
 }) {
+  const [operatingInfo, setOperatingInfo] = useState<OperatingInfo | null>(null);
+  const [operatingStatus, setOperatingStatus] = useState<OperatingInfoStatus>("loading");
+
+  // 운영시간/입장료 연동(2026-08-18): 카드는 selectedLifeSpot이 설정될 때만 마운트되는 기존
+  // 구조(KakaoMap.tsx)라 "클릭 시에만 마운트"가 이미 보장돼 있다 — 마운트 시 useEffect로 1회만
+  // 지연 호출하면 별도 onClick 배선이 필요 없다(요구사항 문서 최상단 요약 3번, AC4). /map 최초
+  // 로드 시에는 이 컴포넌트 자체가 렌더링되지 않으므로 호출이 0회다(AC3).
+  // contentTypeId/tourismContentId가 없으면(buildMapAttractionSpots 이전에 생성된 구버전 데이터
+  // 등 방어적 케이스) 네트워크 호출 없이 바로 실패 상태로 폴백한다.
+  // AbortController를 씀 — dev의 React StrictMode는 마운트 직후 효과를 한 번 더 재실행해
+  // cleanup 없이 boolean 플래그만 쓰면 실제 fetch가 2회 나간다(state 갱신만 막아지고 요청 자체는
+  // 이미 나간 뒤라 AC4 "정확히 1회"가 dev에서 깨져 보인다). abort()는 첫 번째 요청을 실제로
+  // 취소하므로 프로덕션·dev 양쪽에서 네트워크 호출이 1회로 유지된다.
+  useEffect(() => {
+    if (spot.category !== "attraction" || !spot.contentTypeId || !spot.tourismContentId) {
+      setOperatingStatus("failed");
+      setOperatingInfo(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    setOperatingStatus("loading");
+    setOperatingInfo(null);
+
+    fetch(
+      `/api/attraction-detail?contentId=${spot.tourismContentId}&contentTypeId=${spot.contentTypeId}`,
+      { signal: controller.signal }
+    )
+      .then((res) => res.json())
+      .then((data: { operatingInfo: OperatingInfo | null }) => {
+        if (data.operatingInfo) {
+          setOperatingInfo(data.operatingInfo);
+          setOperatingStatus("success");
+        } else {
+          setOperatingStatus("failed");
+        }
+      })
+      .catch((error) => {
+        if (error?.name === "AbortError") return;
+        setOperatingStatus("failed");
+      });
+
+    return () => {
+      controller.abort();
+    };
+  }, [spot.id, spot.category, spot.contentTypeId, spot.tourismContentId]);
+
   return (
     <MapDetailPanel
       title={spot.name}
@@ -105,6 +161,44 @@ export default function MapLifeSpotCard({
     >
       {spot.description && (
         <p className="px-4 pb-3 text-sm text-foreground/70 line-clamp-3">{spot.description}</p>
+      )}
+
+      {/* 운영시간/입장료 연동(2026-08-18): category === "attraction"일 때만 렌더링한다(요구사항
+          문서 7절). 로딩 → 성공(항목별 표시, 셋 다 null이면 "정보 없음") → 실패(API 실패/0건,
+          "운영 정보가 연동되지 않았어요") 3단 상태 — parking/beachIndex 폴백과 동일 톤이다.
+          description 바로 아래·주차 섹션 위에 배치한 이유는 운영시간/입장료가 "지금 가도
+          되는지/얼마인지"를 묻는 가장 기본적인 방문 정보이고 커버리지가 100%에 가까워서다. */}
+      {spot.category === "attraction" && (
+        <div className="px-4 pb-3">
+          <p className="text-xs font-semibold text-foreground/60 mb-1.5">운영 정보</p>
+          {operatingStatus === "loading" && (
+            <p className="text-xs text-foreground/50">운영 정보 불러오는 중...</p>
+          )}
+          {operatingStatus === "failed" && (
+            <p className="text-xs text-foreground/50">운영 정보가 연동되지 않았어요</p>
+          )}
+          {operatingStatus === "success" && operatingInfo && (
+            (() => {
+              const rows = OPERATING_INFO_ROWS.filter((row) => operatingInfo[row.key] !== null);
+              if (rows.length === 0) {
+                return <p className="text-xs text-foreground/50">정보 없음</p>;
+              }
+              return (
+                <ul className="space-y-1.5">
+                  {rows.map((row) => (
+                    <li
+                      key={row.key}
+                      className="flex items-start justify-between gap-2 text-xs bg-muted rounded-lg px-2.5 py-2"
+                    >
+                      <span className="text-foreground/60 whitespace-nowrap">{row.label}</span>
+                      <span className="text-foreground/80 text-right">{operatingInfo[row.key]}</span>
+                    </li>
+                  ))}
+                </ul>
+              );
+            })()
+          )}
+        </div>
       )}
 
       {/* 강릉시 주차 연동(2026-08-16): category "attraction"에서만 렌더링(요구사항 문서 5절).

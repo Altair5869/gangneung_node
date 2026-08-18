@@ -39,7 +39,12 @@ export function mapTourismToWorkSpot(item: TourismApiItem): WorkSpot {
   };
 }
 
-export function mapTourismToLifeSpot(item: TourismApiItem): LifeSpot {
+// contentTypeId(2026-08-18 신규 인자): 어떤 배치(관광지 12 / 문화시설 14)로 요청했는지 아는
+// 호출부(buildMapAttractionSpots)만 명시적으로 넘긴다 — API 응답 파싱이 아니라 호출 시점의
+// 지식을 그대로 태깅하는 원칙(요구사항 문서 4절). 생략하면 기존 호출부(buildLifeSpotCorpus,
+// buildNearbyLifeSpotCorpus 등)와 완전히 동일하게 동작한다(하위 호환, undefined로 남음).
+// tourismContentId는 이 필드 유무와 무관하게 항상 채운다 — WorkSpot과 동일한 관례.
+export function mapTourismToLifeSpot(item: TourismApiItem, contentTypeId?: "12" | "14"): LifeSpot {
   const lat = parseFloat(item.mapy);
   const lng = parseFloat(item.mapx);
   return {
@@ -53,6 +58,8 @@ export function mapTourismToLifeSpot(item: TourismApiItem): LifeSpot {
     imageUrl: item.firstimage,
     description: item.overview,
     tags: ["관광지", "관광공사DB"],
+    tourismContentId: item.contentid,
+    ...(contentTypeId ? { contentTypeId } : {}),
   };
 }
 
