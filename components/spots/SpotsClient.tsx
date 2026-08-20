@@ -4,17 +4,7 @@ import { useState, useMemo } from "react";
 import { WorkSpot } from "@/types";
 import { cn, isBarrierFree } from "@/lib/utils";
 import SpotCard from "@/components/spots/SpotCard";
-
-function calcScore(spot: WorkSpot): number {
-  let score = 0;
-  if (spot.wifi.available) score += 30;
-  if (spot.power.level === "충분함") score += 25;
-  else if (spot.power.level === "제한적") score += 10;
-  if (spot.noise === "언급됨-조용함") score += 25;
-  if (spot.congestion === "low") score += 10;
-  else if (spot.congestion === "medium") score += 5;
-  return score;
-}
+import { MIN_CONFIRMED_FOR_SCORE_FILTER, passesScoreFilter } from "@/lib/work-env-score";
 
 const CATEGORIES: { value: WorkSpot["category"] | ""; label: string }[] = [
   { value: "", label: "전체" },
@@ -73,7 +63,10 @@ export default function SpotsClient({ allSpots }: { allSpots: WorkSpot[] }) {
       if (elevator && s.barrierFree?.elevator !== true) return false;
       if (restroom && s.barrierFree?.restroom !== true) return false;
       if (parking && s.barrierFree?.parking !== true) return false;
-      if (minScore > 0 && calcScore(s) < minScore) return false;
+      // 점수 필터는 /spots/[id] 상세의 WorkEnvScore와 정확히 같은 함수(lib/work-env-score.ts)를
+      // 쓴다 — 여기 로직을 다시 복제하지 않는다. 미확인 항목은 분모에서 제외되므로, 확인 항목이
+      // 너무 적은 스팟이 고득점으로 올라오지 않도록 최소 확인 개수 조건이 함께 걸린다.
+      if (!passesScoreFilter(s, minScore)) return false;
       return true;
     });
   }, [allSpots, query, category, noise, wifi, power, barrierFree, elevator, restroom, parking, minScore]);
@@ -219,6 +212,11 @@ export default function SpotsClient({ allSpots }: { allSpots: WorkSpot[] }) {
                 <button
                   key={opt.value}
                   onClick={() => setMinScore(opt.value)}
+                  title={
+                    opt.value === 0
+                      ? "점수 조건 없음"
+                      : `확인된 항목 ${MIN_CONFIRMED_FOR_SCORE_FILTER}개 이상 & 확인 항목 기준 ${opt.value}점 이상`
+                  }
                   className={cn(
                     "px-2.5 py-1.5 text-xs rounded-lg border whitespace-nowrap transition-colors",
                     minScore === opt.value

@@ -1,4 +1,5 @@
-import { getDetailCommon, getBarrierFreeDetail } from "@/lib/tourism-api";
+import { getDetailCommon, getBarrierFreeDetail, getCongestionMap } from "@/lib/tourism-api";
+import { resolveCongestion } from "@/lib/spot-congestion";
 import { mapTourismToWorkSpot, mapBarrierFreeToWorkSpot } from "@/lib/tourism-mapper";
 import { getKakaoCafes } from "@/lib/kakao-local-api";
 import { VERIFIED_SPOTS, mergeVerifiedFields } from "@/lib/verified-spots";
@@ -82,9 +83,20 @@ async function findSpot(id: string): Promise<WorkSpot | null> {
 // 종속적인데 이 함수는 페이지/라우트 양쪽에서 세션 유무와 무관하게 호출되므로, 호출부(라우트/
 // 페이지)가 각자 auth()로 세션을 얻은 뒤 lib/community-checkin.ts의 getUserCheckin을 직접
 // 호출한다.
+// congestion(2026-08-19 신규): 목록 경로(buildSpotCorpus)는 채우는데 여기서는 채우지 않아
+// 같은 스팟이 /spots와 /spots/[id]에서 서로 다른 데이터를 갖고 있었다(QA 실측: 상세 HTML의
+// congestion 키 0개 → 히어로 "예상 혼잡도" 배지와 SpecCard가 상세에서만 통째로 사라짐).
+// 산출 규칙은 lib/spot-congestion.ts의 resolveCongestion 하나를 buildSpotCorpus와 공유한다 —
+// 여기에 로직을 복제하면 지금과 같은 어긋남이 다시 생긴다.
+// getCongestionMap은 내부에서 실패를 흡수해 빈 Map을 반환하고(fetch revalidate 3600), 빈
+// Map이면 resolveCongestion이 estimateCongestion 추정치로 폴백하므로 추가 try-catch는 불필요하다.
 export async function getSpotById(id: string): Promise<WorkSpot | null> {
   const spot = await findSpot(id);
   if (!spot) return null;
-  const communityCheckin = await getCheckinSummary(spot.id);
-  return communityCheckin ? { ...spot, communityCheckin } : spot;
+  const [congestionMap, communityCheckin] = await Promise.all([
+    getCongestionMap("32", "1"),
+    getCheckinSummary(spot.id),
+  ]);
+  const withCongestion: WorkSpot = { ...spot, congestion: resolveCongestion(spot, congestionMap) };
+  return communityCheckin ? { ...withCongestion, communityCheckin } : withCongestion;
 }

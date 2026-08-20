@@ -10,7 +10,8 @@ import {
 } from "@/lib/tourism-api";
 import { mapTourismToWorkSpot, mapBarrierFreeToWorkSpot, mapTourismToLifeSpot, mapTourismToFoodSpot, mapTourismToStaySpot, mapEventToLifeSpot } from "@/lib/tourism-mapper";
 import { getKakaoCafes, getKakaoRestaurants } from "@/lib/kakao-local-api";
-import { estimateCongestion, looksLikeCafe } from "@/lib/utils";
+import { looksLikeCafe } from "@/lib/utils";
+import { resolveCongestion } from "@/lib/spot-congestion";
 import { VERIFIED_SPOTS, mergeVerifiedFields } from "@/lib/verified-spots";
 import { getCheckinSummaries } from "@/lib/community-checkin";
 import { calculateHaversineDistance } from "@/lib/ai";
@@ -88,7 +89,7 @@ export async function buildSpotCorpus(plannedTime?: Date): Promise<WorkSpot[]> {
     const cMap = congestionMap.status === "fulfilled" ? congestionMap.value : new Map();
     const withCongestion = merged.map((s) => ({
       ...s,
-      congestion: cMap.get(s.tourismContentId ?? "") ?? estimateCongestion(s.id, plannedTime),
+      congestion: resolveCongestion(s, cMap, plannedTime),
     }));
 
     // 실측 데이터(24곳): wifi/power/noise/barrierFree를 전화 확인·방문·웹 스크리닝으로 확정한 값으로
@@ -103,7 +104,7 @@ export async function buildSpotCorpus(plannedTime?: Date): Promise<WorkSpot[]> {
     const presentContentIds = new Set(overridden.map((s) => s.tourismContentId).filter(Boolean));
     const missingVerified = VERIFIED_SPOTS.filter((v) => !presentContentIds.has(v.tourismContentId)).map((v) => ({
       ...v,
-      congestion: cMap.get(v.tourismContentId ?? "") ?? estimateCongestion(v.id, plannedTime),
+      congestion: resolveCongestion(v, cMap, plannedTime),
     }));
 
     // 워케이션 브라우징 화면(/spots, /map, /api/spots)에서 호텔을 노출하지 않기로 결정

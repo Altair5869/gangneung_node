@@ -40,6 +40,10 @@ declare global {
         };
         event: {
           addListener: (target: any, type: string, handler: () => void) => void;
+          // KakaoMap.tsx가 지도 인스턴스를 폐기할 때(effect cleanup) idle 리스너를 실제로 떼기
+          // 위해 필요하다 — 붙이기만 하고 떼지 않으면 폐기된 Map 인스턴스가 핸들러에 매달려
+          // 남는다(2026-08-19, 마커 중복 이슈와 같은 계열의 누수).
+          removeListener: (target: any, type: string, handler: () => void) => void;
         };
       };
     };

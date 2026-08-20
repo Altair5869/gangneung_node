@@ -13,10 +13,18 @@ export const dynamic = "force-dynamic";
 
 export default async function SpotDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const { id } = await params;
+  // 지도(/map)의 워크스팟 패널에서 "상세 페이지 열기"로 들어오면 from=map이 붙는다. 그때는
+  // 뒤로가기가 목록(/spots)이 아니라 지도로 돌아가야 한다 — 예전에는 진입 경로와 무관하게 항상
+  // /spots로 보내서, 지도에서 들어온 사용자가 화면 내 경로로 지도로 못 돌아갔다(요구사항 2-2).
+  // searchParams는 Next 16에서 Promise다(node_modules/next/dist/docs .../page.md 확인).
+  const from = (await searchParams).from;
+  const cameFromMap = from === "map";
   // /api/spots/[id] 라우트와 동일한 조회·병합 함수를 직접 호출한다(셀프 fetch 제거).
   const spot = await getSpotById(id);
   if (!spot) notFound();
@@ -38,17 +46,33 @@ export default async function SpotDetailPage({
           // eslint-disable-next-line @next/next/no-img-element
           <img src={spot.imageUrl} alt={spot.name} className="w-full h-full object-cover" />
         ) : (
-          <div className={cn("w-full h-full bg-gradient-to-br", gradient)} />
+          // imageUrl이 없을 때(예: 카카오 유래 kakao-* 스팟은 imageUrl: "") 그라데이션만 깔리면
+          // 이미지 로딩 실패처럼 보인다. 의도된 플레이스홀더임이 드러나게 아이콘+문구를 얹되,
+          // 없는 사진을 스톡 이미지로 지어내지 않는다(요구사항 4-1, 4-3). 뒤로가기(top-5)·하단
+          // 배지(bottom-5)와 겹치지 않도록 세로 중앙에만 배치한다(4-2).
+          <div className={cn("w-full h-full bg-gradient-to-br flex flex-col items-center justify-center gap-2 px-6", gradient)}>
+            <svg
+              className="w-9 h-9 text-white/70"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 16l5-5 4 4 3-3 6 6M4 5h16a1 1 0 011 1v12a1 1 0 01-1 1H4a1 1 0 01-1-1V6a1 1 0 011-1z" />
+            </svg>
+            <p className="text-sm font-semibold text-white/85 text-center line-clamp-1">{spot.name}</p>
+            <p className="text-xs text-white/70">{categoryLabel[spot.category]} · 등록된 사진 없음</p>
+          </div>
         )}
         {/* 하단 페이드 */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
 
-        {/* 뒤로 가기 */}
+        {/* 뒤로 가기 — 진입 경로(from=map)에 따라 목적지와 문구가 함께 바뀐다. */}
         <Link
-          href="/spots"
+          href={cameFromMap ? "/map" : "/spots"}
           className="absolute top-5 left-5 flex items-center gap-1.5 bg-background/90 backdrop-blur-sm text-sm font-medium px-3 py-1.5 rounded-full text-foreground hover:bg-background transition-colors shadow-sm"
         >
-          ← 목록으로
+          {cameFromMap ? "← 지도로" : "← 목록으로"}
         </Link>
 
         {/* 히어로 배지들 */}
@@ -192,13 +216,22 @@ export default async function SpotDetailPage({
               AI로 동선 짜기
             </Link>
 
-            {/* 목록으로 */}
-            <Link
-              href="/spots"
-              className="block w-full text-center text-foreground/60 text-sm font-medium py-2.5 rounded-2xl border border-border hover:border-foreground/40 hover:text-foreground transition-all"
-            >
-              목록으로 돌아가기
-            </Link>
+            {/* 지도/목록으로 — 히어로 뒤로가기와 별개로, 본문 하단에서도 지도로 돌아갈 경로를
+                항상 제공한다(진입 경로가 무엇이든 화면 내 경로로 /map에 닿을 수 있어야 한다). */}
+            <div className="grid grid-cols-2 gap-2">
+              <Link
+                href="/map"
+                className="block w-full text-center text-foreground/60 text-sm font-medium py-2.5 rounded-2xl border border-border hover:border-foreground/40 hover:text-foreground transition-all"
+              >
+                지도로
+              </Link>
+              <Link
+                href="/spots"
+                className="block w-full text-center text-foreground/60 text-sm font-medium py-2.5 rounded-2xl border border-border hover:border-foreground/40 hover:text-foreground transition-all"
+              >
+                목록으로
+              </Link>
+            </div>
           </div>
         </div>
       </div>
